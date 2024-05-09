@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "sharkie-craftingtest",
+  "version": "${version}",
+  "name": "Sharkie-CraftingTest",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "Apache-2.0",
+  "icon": "assets/sharkie-craftingtest/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "me.sharkie.minecraft.sharkiecraftingtest.client.SharkieCraftingTestClient"
+    ],
+    "main": [
+      "me.sharkie.minecraft.sharkiecraftingtest.SharkieCraftingTest"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
