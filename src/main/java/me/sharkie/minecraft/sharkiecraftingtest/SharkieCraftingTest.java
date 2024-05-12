@@ -7,7 +7,6 @@ public class SharkieCraftingTest implements ModInitializer {
 
     @Override
     public void onInitialize() {
-
         DualSmelterBlock.register(MODID);
     }
 }
