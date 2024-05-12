@@ -75,9 +75,8 @@ public class DualSmelterBlock extends BlockWithEntity implements BlockEntityProv
                                                               dualSmelterBlockEntity.getUses(),
                                                               dualSmelterBlockEntity.getTicks())), false);
             }
-            return ActionResult.SUCCESS;
         }
-        return ActionResult.PASS;
+        return ActionResult.SUCCESS;
     }
 
     @Override

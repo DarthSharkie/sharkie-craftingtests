@@ -38,6 +38,7 @@ public class DualSmelterBlockEntity extends BlockEntity {
     @Override
     protected void writeNbt(NbtCompound nbt) {
         nbt.putInt(USES_KEY, this.uses);
+        nbt.putInt(TICKS_KEY, this.ticks);
         super.writeNbt(nbt);
     }
 
@@ -46,6 +47,7 @@ public class DualSmelterBlockEntity extends BlockEntity {
         // Read in reverse order
         super.readNbt(nbt);
         this.uses = nbt.getInt(USES_KEY);
+        this.ticks = nbt.getInt(TICKS_KEY);
     }
 
     @Nullable
@@ -69,6 +71,7 @@ public class DualSmelterBlockEntity extends BlockEntity {
 
     public void incrementUses() {
         this.uses++;
+        markDirty();
     }
 
     public int getUses() {
