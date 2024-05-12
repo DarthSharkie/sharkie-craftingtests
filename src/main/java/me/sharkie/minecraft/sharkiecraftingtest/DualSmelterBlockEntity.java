@@ -4,6 +4,8 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.inventory.Inventories;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
@@ -13,9 +15,13 @@ import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 public class DualSmelterBlockEntity extends BlockEntity {
+    private static final Logger LOGGER = LogManager.getLogger();
+
     static BlockEntityType<DualSmelterBlockEntity> BLOCK_ENTITY_TYPE;
 
     public static void register(String modid, Block block) {
@@ -25,6 +31,11 @@ public class DualSmelterBlockEntity extends BlockEntity {
     }
 
     // Data fields
+
+    // Inventory: two inputs, one fuel, one output
+    private static final String INVENTORY_KEY = "inventory";
+    private final SmeltingInventory inventory = SmeltingInventory.ofSize(4);
+
     private static final String USES_KEY = "uses";
     private int uses = 0;
 
@@ -39,6 +50,7 @@ public class DualSmelterBlockEntity extends BlockEntity {
     protected void writeNbt(NbtCompound nbt) {
         nbt.putInt(USES_KEY, this.uses);
         nbt.putInt(TICKS_KEY, this.ticks);
+        Inventories.writeNbt(nbt, this.inventory.getItems());
         super.writeNbt(nbt);
     }
 
@@ -48,6 +60,7 @@ public class DualSmelterBlockEntity extends BlockEntity {
         super.readNbt(nbt);
         this.uses = nbt.getInt(USES_KEY);
         this.ticks = nbt.getInt(TICKS_KEY);
+        Inventories.readNbt(nbt, this.inventory.getItems());
     }
 
     @Nullable
@@ -80,5 +93,32 @@ public class DualSmelterBlockEntity extends BlockEntity {
 
     public int getTicks() {
         return this.ticks;
+    }
+
+    public boolean insertItemStack(ItemStack itemStack) {
+        if (this.inventory.getStack(0).isEmpty()) {
+            LOGGER.info("Putting {} in slot 0", itemStack);
+            this.inventory.setStack(0, itemStack);
+            return true;
+        } else if (this.inventory.getStack(1).isEmpty()) {
+            LOGGER.info("Putting {} in slot 1", itemStack);
+            this.inventory.setStack(1, itemStack);
+            return true;
+        } else if (this.inventory.getStack(2).isEmpty()) {
+            LOGGER.info("Putting {} in slot 2", itemStack);
+            this.inventory.setStack(2, itemStack);
+            return true;
+        } else {
+            LOGGER.info("No slot available for {}!", itemStack);
+            return false;
+        }
+    }
+
+    public boolean hasOutput() {
+        return !this.inventory.getStack(3).isEmpty();
+    }
+
+    public ItemStack takeOutput() {
+        return this.inventory.removeStack(3);
     }
 }

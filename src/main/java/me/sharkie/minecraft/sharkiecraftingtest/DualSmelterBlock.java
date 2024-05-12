@@ -13,6 +13,7 @@ import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.state.StateManager;
@@ -74,6 +75,21 @@ public class DualSmelterBlock extends BlockWithEntity implements BlockEntityProv
                 player.sendMessage(Text.literal(String.format("Uses: %d, Ticks: %d",
                                                               dualSmelterBlockEntity.getUses(),
                                                               dualSmelterBlockEntity.getTicks())), false);
+
+                // Allow inventory manipulation
+                ItemStack stackInHand = player.getStackInHand(hand);
+                if (stackInHand.getCount() > 0) {
+                    // If player is holding, insert into smelter
+                    if (dualSmelterBlockEntity.insertItemStack(stackInHand.copy())) {
+                        stackInHand.setCount(0);
+                    }
+                } else {
+                    // If player hand is empty, take output, if any
+                    ItemStack output = dualSmelterBlockEntity.takeOutput();
+                    if (dualSmelterBlockEntity.hasOutput()) {
+                        player.getInventory().offerOrDrop(dualSmelterBlockEntity.takeOutput());
+                    }
+                }
             }
         }
         return ActionResult.SUCCESS;
