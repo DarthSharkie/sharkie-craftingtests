@@ -9,5 +9,6 @@ public class SharkieCraftingTest implements ModInitializer {
     public void onInitialize() {
         DualSmelterBlock.register(MODID);
         DualSmelterBlockEntity.register(MODID, DualSmelterBlock.BLOCK);
+        DualSmelterScreenHandler.register(MODID);
     }
 }

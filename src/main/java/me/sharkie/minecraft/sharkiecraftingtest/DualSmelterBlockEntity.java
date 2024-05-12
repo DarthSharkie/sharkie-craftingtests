@@ -4,7 +4,10 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventories;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
@@ -12,6 +15,9 @@ import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.screen.NamedScreenHandlerFactory;
+import net.minecraft.screen.ScreenHandler;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -19,7 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
-public class DualSmelterBlockEntity extends BlockEntity {
+public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     private static final Logger LOGGER = LogManager.getLogger();
 
     static BlockEntityType<DualSmelterBlockEntity> BLOCK_ENTITY_TYPE;
@@ -95,6 +101,10 @@ public class DualSmelterBlockEntity extends BlockEntity {
         return this.ticks;
     }
 
+    public Inventory getInventory() {
+        return this.inventory;
+    }
+
     public boolean insertItemStack(ItemStack itemStack) {
         if (this.inventory.getStack(0).isEmpty()) {
             LOGGER.info("Putting {} in slot 0", itemStack);
@@ -120,5 +130,16 @@ public class DualSmelterBlockEntity extends BlockEntity {
 
     public ItemStack takeOutput() {
         return this.inventory.removeStack(3);
+    }
+
+    @Override
+    public Text getDisplayName() {
+        return Text.translatable(getCachedState().getBlock().getTranslationKey());
+    }
+
+    @Nullable
+    @Override
+    public ScreenHandler createMenu(int syncId, PlayerInventory playerInventory, PlayerEntity player) {
+        return new DualSmelterScreenHandler(syncId, playerInventory, this.inventory);
     }
 }
