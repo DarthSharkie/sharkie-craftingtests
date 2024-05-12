@@ -1,10 +1,15 @@
 package me.sharkie.minecraft.sharkiecraftingtest;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
+import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.BlockWithEntity;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.BlockEntityTicker;
+import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
@@ -26,9 +31,11 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
-public class DualSmelterBlock extends Block implements BlockEntityProvider {
+public class DualSmelterBlock extends BlockWithEntity implements BlockEntityProvider {
     private static final DirectionProperty FACING = HorizontalFacingBlock.FACING;
     private static final BooleanProperty LIT = Properties.LIT;
+
+    private static final MapCodec<DualSmelterBlock> CODEC = DualSmelterBlock.createCodec(DualSmelterBlock::new);
 
     // Doesn't have an accessor, yet
     public static DualSmelterBlock BLOCK;
@@ -49,6 +56,11 @@ public class DualSmelterBlock extends Block implements BlockEntityProvider {
     }
 
     @Override
+    protected MapCodec<? extends BlockWithEntity> getCodec() {
+        return null;
+    }
+
+    @Override
     protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
         builder.add(FACING).add(LIT);
         super.appendProperties(builder);
@@ -57,9 +69,15 @@ public class DualSmelterBlock extends Block implements BlockEntityProvider {
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (!world.isClient()) {
-            player.sendMessage(Text.literal("USed!"), false);
+            if (world.getBlockEntity(pos) instanceof DualSmelterBlockEntity dualSmelterBlockEntity) {
+                dualSmelterBlockEntity.incrementUses();
+                player.sendMessage(Text.literal(String.format("Uses: %d, Ticks: %d",
+                                                              dualSmelterBlockEntity.getUses(),
+                                                              dualSmelterBlockEntity.getTicks())), false);
+            }
+            return ActionResult.SUCCESS;
         }
-        return ActionResult.SUCCESS;
+        return ActionResult.PASS;
     }
 
     @Override
@@ -76,5 +94,18 @@ public class DualSmelterBlock extends Block implements BlockEntityProvider {
     @Override
     public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
         return new DualSmelterBlockEntity(pos, state);
+    }
+
+    @Override
+    public BlockRenderType getRenderType(BlockState state) {
+        // Render the block, it will default to invisible
+        return BlockRenderType.MODEL;
+    }
+
+    @Nullable
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
+        // Return a ticker, only on server-side
+        return world.isClient() ? null : validateTicker(type, DualSmelterBlockEntity.BLOCK_ENTITY_TYPE, DualSmelterBlockEntity::tick);
     }
 }
