@@ -1,21 +1,28 @@
 package me.sharkie.minecraft.sharkiecraftingtest;
 
+import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.resource.featuretoggle.FeatureFlags;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.slot.Slot;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+
+import java.util.Map;
 
 public class DualSmelterScreenHandler extends ScreenHandler {
 
     public static ScreenHandlerType<DualSmelterScreenHandler> SCREEN_HANDLER_TYPE;
+    private static final TagKey<Item> INGOTS_TAGKEY = TagKey.of(RegistryKeys.ITEM, new Identifier("c", "ingots"));
+    private static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
 
     public static void register(String modid) {
         SCREEN_HANDLER_TYPE = Registry.register(Registries.SCREEN_HANDLER,
@@ -59,35 +66,52 @@ public class DualSmelterScreenHandler extends ScreenHandler {
     @Override
     public ItemStack quickMove(PlayerEntity player, int slotId) {
         // This handles Shift + Player Inventory (inserting into this screen's inventory)
-        ItemStack newStack = ItemStack.EMPTY;
         Slot slot = this.slots.get(slotId);
-        player.sendMessage(Text.literal(String.format("Slot %d has %s", slotId, slot.getStack())), false);
-        if (slot.hasStack()) {
-            ItemStack stack = slot.getStack();
-            newStack = stack.copy();
-            if (slotId < this.inventory.size()) {
-                // Source slot is specific to this UI, try to return to player inventory, then hotbar
-                if (!this.insertItem(stack, this.inventory.size(), this.slots.size(), true)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (!this.insertItem(stack, 0, this.inventory.size() - 1, false)) {
-                // Source slot is player inventory, try to move into crafting slots
+        if (!slot.hasStack()) {
+            return ItemStack.EMPTY;
+        }
+
+        ItemStack stack = slot.getStack();
+        ItemStack originalStack = stack.copy();
+        if (slotId == 3) {
+            // Source slot is this UI's output, try to return to player hotbar, then player inventory
+            if (!this.insertItem(stack, this.inventory.size(), this.slots.size(), true)) {
                 return ItemStack.EMPTY;
             }
-            // TODO: Figure how to limit what can go in smelter.  AbstractFurnaceScreenHandler has a recipe-based approach that I don't like.  Tags??
-
-            if (stack.isEmpty()) {
-                slot.setStack(ItemStack.EMPTY);
-            } else {
-                slot.markDirty();
+        } else if (slotId < this.inventory.size()) {
+            // Source slot is specific to this UI, try to return to player inventory, then player hotbar
+            if (!this.insertItem(stack, this.inventory.size(), this.slots.size(), false)) {
+                return ItemStack.EMPTY;
+            }
+        } else if (stack.isIn(INGOTS_TAGKEY) && slotId > this.inventory.size()) {
+            // Source stack is meltable, and source slot is player inventory/hotbar; try to move into melting slots
+            if (!this.insertItem(stack, 0, 2, false)) {
+                return ItemStack.EMPTY;
+            }
+        } else if (this.isFuel(stack) && slotId > this.inventory.size()) {
+            // Source stack is fuel, and source slot is player inventory/hotbar; try to move into fuel slot
+            if (!this.insertItem(stack, 2, 3, false)) {
+                return ItemStack.EMPTY;
             }
         }
-        player.sendMessage(Text.literal(String.format("New Stack: %s", newStack)), false);
-        return newStack;
+
+        if (stack.isEmpty()) {
+            slot.setStack(ItemStack.EMPTY);
+        } else {
+            slot.markDirty();
+        }
+        if (originalStack.getCount() == stack.getCount()) {
+            return ItemStack.EMPTY;
+        }
+        return originalStack;
     }
 
     @Override
     public boolean canUse(PlayerEntity player) {
         return this.inventory.canPlayerUse(player);
+    }
+
+    private boolean isFuel(ItemStack itemStack) {
+        return FUEL_BURN_TIME_MAP.containsKey(itemStack.getItem());
     }
 }
