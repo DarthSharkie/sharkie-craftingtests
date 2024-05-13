@@ -2,20 +2,24 @@ package me.sharkie.minecraft.sharkiecraftingtest;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
+import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.screen.NamedScreenHandlerFactory;
+import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -25,8 +29,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
+
 public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     private static final Logger LOGGER = LogManager.getLogger();
+    private static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
 
     static BlockEntityType<DualSmelterBlockEntity> BLOCK_ENTITY_TYPE;
 
@@ -48,6 +55,62 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     private static final String TICKS_KEY = "ticks";
     private int ticks = 0;
 
+    public static final int BURN_TIME_PROPERTY = 0;
+    private static final String BURN_TIME_KEY = "burnTime";
+    private int burnTime = 0;
+
+    public static final int FUEL_TIME_PROPERTY = 1;
+    private static final String FUEL_TIME_KEY = "fuelTime";
+    private int fuelTime = 0;
+
+    public static final int COOK_TIME_PROPERTY = 2;
+    private static final String COOK_TIME_KEY = "cookTime";
+    private int cookTime = 0;
+
+    public static final int COOK_TIME_TOTAL_PROPERTY = 3;
+    private static final String COOK_TIME_TOTAL_KEY = "cookTimeTotal";
+    private int cookTimeTotal = 0;
+
+    private final PropertyDelegate propertyDelegate = new PropertyDelegate() {
+        @Override
+        public int get(int index) {
+            if (index == BURN_TIME_PROPERTY) {
+                return DualSmelterBlockEntity.this.burnTime;
+            }
+            if (index == FUEL_TIME_PROPERTY) {
+                return DualSmelterBlockEntity.this.fuelTime;
+            }
+            if (index == COOK_TIME_PROPERTY) {
+                return DualSmelterBlockEntity.this.cookTime;
+            }
+            if (index == COOK_TIME_TOTAL_PROPERTY) {
+                return DualSmelterBlockEntity.this.cookTimeTotal;
+            }
+            return 0;
+        }
+
+        @Override
+        public void set(int index, int value) {
+            if (index == BURN_TIME_PROPERTY) {
+                DualSmelterBlockEntity.this.burnTime = value;
+            }
+            if (index == FUEL_TIME_PROPERTY) {
+                DualSmelterBlockEntity.this.fuelTime = value;
+            }
+            if (index == COOK_TIME_PROPERTY) {
+                DualSmelterBlockEntity.this.cookTime = value;
+            }
+            if (index == COOK_TIME_TOTAL_PROPERTY) {
+                DualSmelterBlockEntity.this.cookTimeTotal = value;
+            }
+        }
+
+        @Override
+        public int size() {
+            return 4;
+        }
+    };
+
     public DualSmelterBlockEntity(BlockPos pos, BlockState state) {
         super(BLOCK_ENTITY_TYPE, pos, state);
     }
@@ -56,6 +119,9 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     protected void writeNbt(NbtCompound nbt) {
         nbt.putInt(USES_KEY, this.uses);
         nbt.putInt(TICKS_KEY, this.ticks);
+        nbt.putShort(BURN_TIME_KEY, (short) this.burnTime);
+        nbt.putShort(COOK_TIME_KEY, (short) this.cookTime);
+        nbt.putShort(COOK_TIME_TOTAL_KEY, (short) this.cookTimeTotal);
         Inventories.writeNbt(nbt, this.inventory.getItems());
         super.writeNbt(nbt);
     }
@@ -66,7 +132,13 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         super.readNbt(nbt);
         this.uses = nbt.getInt(USES_KEY);
         this.ticks = nbt.getInt(TICKS_KEY);
+        this.burnTime = nbt.getShort(BURN_TIME_KEY);
+        this.cookTime = nbt.getShort(COOK_TIME_KEY);
+        this.cookTimeTotal = nbt.getShort(COOK_TIME_TOTAL_KEY);
         Inventories.readNbt(nbt, this.inventory.getItems());
+
+        // Derived property
+        this.fuelTime = this.getFuelTime(this.inventory.getStack(2));
     }
 
     @Nullable
@@ -85,7 +157,65 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     // Runs logic on game tick
     public static void tick(World world, BlockPos blockPos, BlockState blockState, DualSmelterBlockEntity dualSmelterBlockEntity) {
         dualSmelterBlockEntity.ticks++;
-        markDirty(world, blockPos, blockState);
+        final boolean wasBurning = dualSmelterBlockEntity.isBurning();
+        boolean burningChanged = false;
+
+        if (wasBurning) {
+            // We're burning, need to tick that down
+            dualSmelterBlockEntity.burnTime--;
+        }
+        ItemStack fuelStack = dualSmelterBlockEntity.inventory.getFuelStack();
+        boolean hasInput1 = !dualSmelterBlockEntity.inventory.getStack(0).isEmpty();
+        boolean hasInput2 = !dualSmelterBlockEntity.inventory.getStack(1).isEmpty();
+        boolean hasFuel = !fuelStack.isEmpty();
+
+        if (dualSmelterBlockEntity.isBurning() || ((hasInput1 || hasInput2) && hasFuel)) {
+            // Figure out if there's a legit recipe with these ingredients
+            RecipeEntry<?> recipeEntry;
+            if (!dualSmelterBlockEntity.isBurning() && legitRecipe(recipeEntry)) {
+                // Start the burn!
+                dualSmelterBlockEntity.fuelTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
+                dualSmelterBlockEntity.burnTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
+                // Could be zero if the fuel wasn't found, so double check before using the fuel.
+                if (dualSmelterBlockEntity.isBurning()) {
+                    burningChanged = true;
+                    Item fuel = fuelStack.getItem();
+                    fuelStack.decrement(1);
+                    if (fuelStack.isEmpty()) {
+                        Item fuelRecipeRemainder = fuel.getRecipeRemainder();
+                        ItemStack remainderStack = fuelRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelRecipeRemainder);
+                        dualSmelterBlockEntity.inventory.setStack(2, remainderStack);
+                    }
+                }
+            }
+            // Now, we could be burning, so check that
+            if (dualSmelterBlockEntity.isBurning() && legitRecipe(recipeEntry)) {
+                dualSmelterBlockEntity.cookTime++;
+                // Might have finished
+                if (dualSmelterBlockEntity.cookTime == dualSmelterBlockEntity.cookTimeTotal) {
+                    dualSmelterBlockEntity.cookTime = 0;
+                    dualSmelterBlockEntity.cookTimeTotal = lookupCookTime(world, dualSmelterBlockEntity);
+                    if (craftRecipe(world, recipeEntry, dualSmelterBlockEntity.inventory)) {
+                        // Set last recipe?  NBT?
+                    }
+                    burningChanged = true;
+                }
+            } else {
+                // Burning, but nowhere to put the output, so don't cook it!
+                dualSmelterBlockEntity.cookTime = 0;
+            }
+        } else if (!dualSmelterBlockEntity.isBurning() && dualSmelterBlockEntity.cookTime > 0) {
+            // Not burning, but something's partially cooked.  Start "uncooking it" to mimic the AbstractFurnace.
+            dualSmelterBlockEntity.cookTime = Math.min(Math.max(0, dualSmelterBlockEntity.cookTime - 2), dualSmelterBlockEntity.cookTimeTotal);
+        }
+        if (wasBurning != dualSmelterBlockEntity.isBurning()) {
+            burningChanged = true;
+            blockState = blockState.with(DualSmelterBlock.LIT, dualSmelterBlockEntity.isBurning());
+            world.setBlockState(blockPos, blockState, Block.NOTIFY_ALL);
+        }
+        if (burningChanged) {
+            DualSmelterBlockEntity.markDirty(world, blockPos, blockState);
+        }
     }
 
     public void incrementUses() {
@@ -105,33 +235,6 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         return this.inventory;
     }
 
-    public boolean insertItemStack(ItemStack itemStack) {
-        if (this.inventory.getStack(0).isEmpty()) {
-            LOGGER.info("Putting {} in slot 0", itemStack);
-            this.inventory.setStack(0, itemStack);
-            return true;
-        } else if (this.inventory.getStack(1).isEmpty()) {
-            LOGGER.info("Putting {} in slot 1", itemStack);
-            this.inventory.setStack(1, itemStack);
-            return true;
-        } else if (this.inventory.getStack(2).isEmpty()) {
-            LOGGER.info("Putting {} in slot 2", itemStack);
-            this.inventory.setStack(2, itemStack);
-            return true;
-        } else {
-            LOGGER.info("No slot available for {}!", itemStack);
-            return false;
-        }
-    }
-
-    public boolean hasOutput() {
-        return !this.inventory.getStack(3).isEmpty();
-    }
-
-    public ItemStack takeOutput() {
-        return this.inventory.removeStack(3);
-    }
-
     @Override
     public Text getDisplayName() {
         return Text.translatable(getCachedState().getBlock().getTranslationKey());
@@ -140,6 +243,17 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     @Nullable
     @Override
     public ScreenHandler createMenu(int syncId, PlayerInventory playerInventory, PlayerEntity player) {
-        return new DualSmelterScreenHandler(syncId, playerInventory, this.inventory);
+        return new DualSmelterScreenHandler(syncId, playerInventory, this.inventory, propertyDelegate);
+    }
+
+    private int getFuelTime(ItemStack itemStack) {
+        if (itemStack.isEmpty()) {
+            return 0;
+        }
+        return FUEL_BURN_TIME_MAP.getOrDefault(itemStack.getItem(), 0);
+    }
+
+    private boolean isBurning() {
+        return this.burnTime > 0;
     }
 }

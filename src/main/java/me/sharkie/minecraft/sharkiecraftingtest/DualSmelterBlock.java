@@ -36,7 +36,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class DualSmelterBlock extends BlockWithEntity implements BlockEntityProvider {
     private static final DirectionProperty FACING = HorizontalFacingBlock.FACING;
-    private static final BooleanProperty LIT = Properties.LIT;
+    public static final BooleanProperty LIT = Properties.LIT;
 
     private static final MapCodec<DualSmelterBlock> CODEC = DualSmelterBlock.createCodec(DualSmelterBlock::new);
 

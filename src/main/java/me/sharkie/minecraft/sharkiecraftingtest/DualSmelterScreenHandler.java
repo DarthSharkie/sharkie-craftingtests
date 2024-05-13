@@ -11,6 +11,8 @@ import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.resource.featuretoggle.FeatureFlags;
+import net.minecraft.screen.ArrayPropertyDelegate;
+import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.slot.Slot;
@@ -21,6 +23,7 @@ import java.util.Map;
 public class DualSmelterScreenHandler extends ScreenHandler {
 
     public static ScreenHandlerType<DualSmelterScreenHandler> SCREEN_HANDLER_TYPE;
+
     private static final TagKey<Item> INGOTS_TAGKEY = TagKey.of(RegistryKeys.ITEM, new Identifier("c", "ingots"));
     private static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
 
@@ -31,17 +34,22 @@ public class DualSmelterScreenHandler extends ScreenHandler {
     }
 
     private final Inventory inventory;
+    private final PropertyDelegate propertyDelegate;
 
     public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory) {
-        this(syncId, playerInventory, SmeltingInventory.ofSize(4));
+        this(syncId, playerInventory, SmeltingInventory.ofSize(4), new ArrayPropertyDelegate(1));
     }
 
-    public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory, SmeltingInventory inventory) {
+    public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory, SmeltingInventory inventory, PropertyDelegate propertyDelegate) {
         super(SCREEN_HANDLER_TYPE, syncId);
         checkSize(inventory, 4);
         this.inventory = inventory;
         // Allow logic on opening inventory
         inventory.onOpen(playerInventory.player);
+
+        // Configure the PropertyDelegate; this syncs state between logical client/server
+        this.propertyDelegate = propertyDelegate;
+        this.addProperties(this.propertyDelegate);
 
         // Compute Slots shown on this screen, including crafting slots, player inventory, and player hotbar
         // Crafting
@@ -61,6 +69,34 @@ public class DualSmelterScreenHandler extends ScreenHandler {
         for (int i = 0; i < 9; i++) {
             this.addSlot(new Slot(playerInventory, i, 8 + i * 18, 142));
         }
+    }
+
+    /**
+     * Returns burn progress clamped between [0.0, 1.0]
+     */
+    public float getBurnProgress() {
+        int burnTime = propertyDelegate.get(DualSmelterBlockEntity.BURN_TIME_PROPERTY);
+        int fuelTime = propertyDelegate.get(DualSmelterBlockEntity.FUEL_TIME_PROPERTY);
+        if (burnTime == 0 || fuelTime == 0) {
+            return 0.0f;
+        }
+        return Math.min(Math.max(0.0f, (float) burnTime / (float) fuelTime), 1.0f);
+    }
+
+    public boolean isBurning() {
+        return propertyDelegate.get(DualSmelterBlockEntity.BURN_TIME_PROPERTY) > 0;
+    }
+
+    /**
+     * Returns cook progress clamped between [0.0, 1.0]
+     */
+    public float getCookProgress() {
+        int cookTime = propertyDelegate.get(DualSmelterBlockEntity.COOK_TIME_PROPERTY);
+        int cookTimeTotal = propertyDelegate.get(DualSmelterBlockEntity.COOK_TIME_TOTAL_PROPERTY);
+        if (cookTime == 0 || cookTimeTotal == 0) {
+            return 0.0f;
+        }
+        return Math.min(Math.max(0.0f, (float) cookTime / (float) cookTimeTotal), 1.0f);
     }
 
     @Override
