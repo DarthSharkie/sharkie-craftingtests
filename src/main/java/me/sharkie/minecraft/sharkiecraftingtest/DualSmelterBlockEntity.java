@@ -16,6 +16,7 @@ import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.recipe.RecipeEntry;
+import net.minecraft.recipe.RecipeManager;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
@@ -31,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.Optional;
 
 public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -38,16 +40,15 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
 
     static BlockEntityType<DualSmelterBlockEntity> BLOCK_ENTITY_TYPE;
 
-    public static void register(String modid, Block block) {
+    public static void register(String modId, Block block) {
         BLOCK_ENTITY_TYPE = Registry.register(Registries.BLOCK_ENTITY_TYPE,
-                                              new Identifier(modid, "dual_smelter_block_entity"),
+                                              new Identifier(modId, "dual_smelter_block_entity"),
                                               BlockEntityType.Builder.create(DualSmelterBlockEntity::new, block).build());
     }
 
     // Data fields
 
     // Inventory: two inputs, one fuel, one output
-    private static final String INVENTORY_KEY = "inventory";
     private final SmeltingInventory inventory = SmeltingInventory.ofSize(4);
 
     private static final String USES_KEY = "uses";
@@ -61,7 +62,6 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     private int burnTime = 0;
 
     public static final int FUEL_TIME_PROPERTY = 1;
-    private static final String FUEL_TIME_KEY = "fuelTime";
     private int fuelTime = 0;
 
     public static final int COOK_TIME_PROPERTY = 2;
@@ -112,8 +112,12 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         }
     };
 
+    // Added fields for internal logic
+    private final RecipeManager.MatchGetter<SmeltingInventory, DualSmelterRecipe> matchGetter;
+
     public DualSmelterBlockEntity(BlockPos pos, BlockState state) {
         super(BLOCK_ENTITY_TYPE, pos, state);
+        this.matchGetter = RecipeManager.createCachedMatchGetter(DualSmelterRecipe.Type.INSTANCE);
     }
 
     @Override
@@ -172,10 +176,11 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
 
         if (dualSmelterBlockEntity.isBurning() || (hasInput1 && hasInput2 && hasFuel)) {
             // Figure out if there's a legit recipe with these ingredients
-            RecipeEntry<?> recipeEntry = dualSmelterBlockEntity.findRecipe();
+            RecipeEntry<DualSmelterRecipe> recipeEntry = dualSmelterBlockEntity.findRecipe();
             if (!dualSmelterBlockEntity.isBurning() && canAcceptRecipeOutput(world.getRegistryManager(),
                                                                              recipeEntry,
                                                                              dualSmelterBlockEntity.inventory)) {
+                LOGGER.info("Start burning {} to produce {}", fuelStack, recipeEntry.id());
                 // Start the burn!
                 dualSmelterBlockEntity.fuelTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
                 dualSmelterBlockEntity.burnTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
@@ -199,7 +204,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                 // Might have finished
                 if (dualSmelterBlockEntity.cookTime == dualSmelterBlockEntity.cookTimeTotal) {
                     dualSmelterBlockEntity.cookTime = 0;
-                    dualSmelterBlockEntity.cookTimeTotal = 200; // Optional.ofNullable(recipeEntry).map(re -> re.value().getCookingTime()).orElse(200);
+                    dualSmelterBlockEntity.cookTimeTotal = Optional.ofNullable(recipeEntry).map(re -> re.value().getCookingTime()).orElse(200);
                     if (craftRecipe(world.getRegistryManager(), recipeEntry, dualSmelterBlockEntity.inventory)) {
                         // Set last recipe and drop experience?
                         LOGGER.info("Crafted a {}", recipeEntry.value().getResult(world.getRegistryManager()));
@@ -208,10 +213,12 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                 }
             } else {
                 // Burning, but nowhere to put the output, so don't cook it!
+                LOGGER.warn("Nowhere to put {}!", recipeEntry.value().getOutput());
                 dualSmelterBlockEntity.cookTime = 0;
             }
         } else if (!dualSmelterBlockEntity.isBurning() && dualSmelterBlockEntity.cookTime > 0) {
-            // Not burning, but something's partially cooked.  Start "uncooking it" to mimic the AbstractFurnace.
+            // Not burning, but something's partially cooked.  Start "un-cooking it" to mimic the AbstractFurnace.
+            LOGGER.info("Un-cooking the thing.");
             dualSmelterBlockEntity.cookTime = Math.min(Math.max(0, dualSmelterBlockEntity.cookTime - 2), dualSmelterBlockEntity.cookTimeTotal);
         }
         if (wasBurning != dualSmelterBlockEntity.isBurning()) {
@@ -224,9 +231,9 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         }
     }
 
-    private RecipeEntry<?> findRecipe() {
+    private RecipeEntry<DualSmelterRecipe> findRecipe() {
         // TODO: Stub recipe, then appropriate lookups
-        return null;
+        return this.matchGetter.getFirstMatch(this.inventory, world).orElse(null);
     }
 
     private static boolean canAcceptRecipeOutput(DynamicRegistryManager registryManager,
