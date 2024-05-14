@@ -37,7 +37,7 @@ public class DualSmelterScreenHandler extends ScreenHandler {
     private final PropertyDelegate propertyDelegate;
 
     public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory) {
-        this(syncId, playerInventory, SmeltingInventory.ofSize(4), new ArrayPropertyDelegate(1));
+        this(syncId, playerInventory, SmeltingInventory.ofSize(4), new ArrayPropertyDelegate(4));
     }
 
     public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory, SmeltingInventory inventory, PropertyDelegate propertyDelegate) {
