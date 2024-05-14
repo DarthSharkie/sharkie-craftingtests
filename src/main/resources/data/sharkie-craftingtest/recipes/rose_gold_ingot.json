@@ -1,0 +1,14 @@
+{
+  "type": "sharkie-craftingtest:dual_smelter",
+  "group": "alloys",
+  "ingredientA": {
+    "item": "minecraft:copper_ingot"
+  },
+  "ingredientB": {
+    "item": "minecraft:gold_ingot"
+  },
+  "result": {
+    "item": "minecraft:netherite_ingot"
+  },
+  "cookingtime": 100
+}

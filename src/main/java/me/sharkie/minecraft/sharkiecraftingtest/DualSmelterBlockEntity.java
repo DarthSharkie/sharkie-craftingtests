@@ -202,6 +202,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                     dualSmelterBlockEntity.cookTimeTotal = 200; // Optional.ofNullable(recipeEntry).map(re -> re.value().getCookingTime()).orElse(200);
                     if (craftRecipe(world.getRegistryManager(), recipeEntry, dualSmelterBlockEntity.inventory)) {
                         // Set last recipe and drop experience?
+                        LOGGER.info("Crafted a {}", recipeEntry.value().getResult(world.getRegistryManager()));
                     }
                     burningChanged = true;
                 }
