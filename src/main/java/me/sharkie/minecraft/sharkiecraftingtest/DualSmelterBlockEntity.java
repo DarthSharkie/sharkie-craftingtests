@@ -16,6 +16,7 @@ import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.recipe.RecipeEntry;
+import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.screen.NamedScreenHandlerFactory;
@@ -169,10 +170,12 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         boolean hasInput2 = !dualSmelterBlockEntity.inventory.getStack(1).isEmpty();
         boolean hasFuel = !fuelStack.isEmpty();
 
-        if (dualSmelterBlockEntity.isBurning() || ((hasInput1 || hasInput2) && hasFuel)) {
+        if (dualSmelterBlockEntity.isBurning() || (hasInput1 && hasInput2 && hasFuel)) {
             // Figure out if there's a legit recipe with these ingredients
-            RecipeEntry<?> recipeEntry;
-            if (!dualSmelterBlockEntity.isBurning() && legitRecipe(recipeEntry)) {
+            RecipeEntry<?> recipeEntry = dualSmelterBlockEntity.findRecipe();
+            if (!dualSmelterBlockEntity.isBurning() && canAcceptRecipeOutput(world.getRegistryManager(),
+                                                                             recipeEntry,
+                                                                             dualSmelterBlockEntity.inventory)) {
                 // Start the burn!
                 dualSmelterBlockEntity.fuelTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
                 dualSmelterBlockEntity.burnTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
@@ -189,14 +192,16 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                 }
             }
             // Now, we could be burning, so check that
-            if (dualSmelterBlockEntity.isBurning() && legitRecipe(recipeEntry)) {
+            if (dualSmelterBlockEntity.isBurning() && canAcceptRecipeOutput(world.getRegistryManager(),
+                                                                            recipeEntry,
+                                                                            dualSmelterBlockEntity.inventory)) {
                 dualSmelterBlockEntity.cookTime++;
                 // Might have finished
                 if (dualSmelterBlockEntity.cookTime == dualSmelterBlockEntity.cookTimeTotal) {
                     dualSmelterBlockEntity.cookTime = 0;
-                    dualSmelterBlockEntity.cookTimeTotal = lookupCookTime(world, dualSmelterBlockEntity);
-                    if (craftRecipe(world, recipeEntry, dualSmelterBlockEntity.inventory)) {
-                        // Set last recipe?  NBT?
+                    dualSmelterBlockEntity.cookTimeTotal = 200; // Optional.ofNullable(recipeEntry).map(re -> re.value().getCookingTime()).orElse(200);
+                    if (craftRecipe(world.getRegistryManager(), recipeEntry, dualSmelterBlockEntity.inventory)) {
+                        // Set last recipe and drop experience?
                     }
                     burningChanged = true;
                 }
@@ -216,6 +221,66 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         if (burningChanged) {
             DualSmelterBlockEntity.markDirty(world, blockPos, blockState);
         }
+    }
+
+    private RecipeEntry<?> findRecipe() {
+        // TODO: Stub recipe, then appropriate lookups
+        return null;
+    }
+
+    private static boolean canAcceptRecipeOutput(DynamicRegistryManager registryManager,
+                                                 @Nullable RecipeEntry<?> recipeEntry,
+                                                 SmeltingInventory smeltingInventory) {
+        if (!smeltingInventory.hasInputs() || recipeEntry == null) {
+            // Missing input(s) or missing recipe
+            return false;
+        }
+        ItemStack resultPreviewStack = recipeEntry.value().getResult(registryManager);
+        if (resultPreviewStack.isEmpty()) {
+            // Recipe doesn't craft anything???
+            return false;
+        }
+        ItemStack outputStack = smeltingInventory.getOutputStack();
+        if (outputStack.isEmpty()) {
+            // No current output == craft away!
+            return true;
+        }
+        if (!ItemStack.areItemsEqual(outputStack, resultPreviewStack)) {
+            // If output already exists, must make more of the exact same item.
+            return false;
+        }
+        if (outputStack.getCount() < smeltingInventory.getMaxCountPerStack() && outputStack.getCount() < outputStack.getMaxCount()) {
+            // If the stack is less than both the inventory's max stack size _and_ the item's max stack size, then craft!
+            return true;
+        }
+        // If the output stack is smaller than the output item's max stack size, then craft, else don't.
+        return outputStack.getCount() < resultPreviewStack.getMaxCount();
+    }
+
+    private static boolean craftRecipe(DynamicRegistryManager registryManager,
+                                       @Nullable RecipeEntry<?> recipeEntry,
+                                       SmeltingInventory smeltingInventory) {
+        if (recipeEntry == null || !canAcceptRecipeOutput(registryManager, recipeEntry, smeltingInventory)) {
+            // If no recipe, or the output situation changed, do not craft
+            return false;
+        }
+
+        // Quick references
+        ItemStack inputA = smeltingInventory.getStack(0);
+        ItemStack inputB = smeltingInventory.getStack(1);
+        ItemStack resultStack = recipeEntry.value().getResult(registryManager);
+        ItemStack outputStack = smeltingInventory.getOutputStack();
+
+        if (outputStack.isEmpty()) {
+            // No output, so copy over
+            smeltingInventory.setStack(3, resultStack.copy());
+        } else if (outputStack.isOf(resultStack.getItem())) {
+            // Adding to output, so increment appropriately
+            outputStack.increment(resultStack.getCount());
+        }
+        inputA.decrement(1);
+        inputB.decrement(1);
+        return true;
     }
 
     public void incrementUses() {

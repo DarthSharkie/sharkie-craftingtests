@@ -45,8 +45,16 @@ public class SmeltingInventory implements SidedInventory {
         return 0 <= slot && slot < items.size() ? items.get(slot) : ItemStack.EMPTY;
     }
 
+    public boolean hasInputs() {
+        return !getStack(0).isEmpty() && !getStack(1).isEmpty();
+    }
+
     public ItemStack getFuelStack() {
         return getStack(2);
+    }
+
+    public ItemStack getOutputStack() {
+        return getStack(3);
     }
 
     @Override
