@@ -9,9 +9,12 @@ import net.minecraft.client.render.GameRenderer;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 
 public class DualSmelterScreen extends HandledScreen<DualSmelterScreenHandler> {
     private static final Identifier TEXTURE = new Identifier("sharkie-craftingtest", "textures/gui/container/dual_smelter.png");
+    private static final Identifier LIT_PROGRESS_TEXTURE = new Identifier("container/furnace/lit_progress");
+    private static final Identifier BURN_PROGRESS_TEXTURE = new Identifier("container/furnace/burn_progress");
 
     public DualSmelterScreen(DualSmelterScreenHandler handler, PlayerInventory playerInventory, Text title) {
         super(handler, playerInventory, title);
@@ -29,6 +32,18 @@ public class DualSmelterScreen extends HandledScreen<DualSmelterScreenHandler> {
         int x = (width - backgroundWidth) / 2;
         int y = (height - backgroundHeight) / 2;
         context.drawTexture(TEXTURE, x, y, 0, 0, backgroundWidth, backgroundHeight);
+
+        if (this.handler.isBurning()) {
+            int progress = MathHelper.ceil(this.handler.getBurnProgress() * 13.0f) + 1;
+            int litWidth = 14;
+            int litHeight = 14;
+            int visibleHeight = litHeight - progress;
+            context.drawGuiTexture(LIT_PROGRESS_TEXTURE, litWidth, litHeight, 0, visibleHeight, x + 46, y + 36 + visibleHeight, litWidth, progress);
+        }
+        int cookProgressHeight = 16;
+        int cookProgressWidth = 24;
+        int cookProgress = MathHelper.ceil(this.handler.getCookProgress() * 24.0f);
+        context.drawGuiTexture(BURN_PROGRESS_TEXTURE, cookProgressWidth, cookProgressHeight, 0, 0, x + 79, y + 34, cookProgress, cookProgressHeight);
     }
 
     @Override
