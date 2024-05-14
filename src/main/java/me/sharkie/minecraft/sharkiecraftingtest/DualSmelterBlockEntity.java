@@ -32,7 +32,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
-import java.util.Optional;
 
 public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -168,6 +167,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         if (wasBurning) {
             // We're burning, need to tick that down
             dualSmelterBlockEntity.burnTime--;
+            //LOGGER.info("New burn time: {}/{}", dualSmelterBlockEntity.burnTime, dualSmelterBlockEntity.fuelTime);
         }
         ItemStack fuelStack = dualSmelterBlockEntity.inventory.getFuelStack();
         boolean hasInput1 = !dualSmelterBlockEntity.inventory.getStack(0).isEmpty();
@@ -184,6 +184,8 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                 // Start the burn!
                 dualSmelterBlockEntity.fuelTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
                 dualSmelterBlockEntity.burnTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
+                dualSmelterBlockEntity.cookTime = 0;
+                dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getCookingTime();
                 // Could be zero if the fuel wasn't found, so double check before using the fuel.
                 if (dualSmelterBlockEntity.isBurning()) {
                     burningChanged = true;
@@ -201,10 +203,11 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                                                                             recipeEntry,
                                                                             dualSmelterBlockEntity.inventory)) {
                 dualSmelterBlockEntity.cookTime++;
+                //LOGGER.info("Cook time: {}/{}", dualSmelterBlockEntity.cookTime, dualSmelterBlockEntity.cookTimeTotal);
                 // Might have finished
                 if (dualSmelterBlockEntity.cookTime == dualSmelterBlockEntity.cookTimeTotal) {
                     dualSmelterBlockEntity.cookTime = 0;
-                    dualSmelterBlockEntity.cookTimeTotal = Optional.ofNullable(recipeEntry).map(re -> re.value().getCookingTime()).orElse(200);
+                    dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getCookingTime();
                     if (craftRecipe(world.getRegistryManager(), recipeEntry, dualSmelterBlockEntity.inventory)) {
                         // Set last recipe and drop experience?
                         LOGGER.info("Crafted a {}", recipeEntry.value().getResult(world.getRegistryManager()));
@@ -212,13 +215,11 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                     burningChanged = true;
                 }
             } else {
-                // Burning, but nowhere to put the output, so don't cook it!
-                LOGGER.warn("Nowhere to put {}!", recipeEntry.value().getOutput());
+                // Maybe burning, but nowhere to put the output, so reset cook time.
                 dualSmelterBlockEntity.cookTime = 0;
             }
         } else if (!dualSmelterBlockEntity.isBurning() && dualSmelterBlockEntity.cookTime > 0) {
             // Not burning, but something's partially cooked.  Start "un-cooking it" to mimic the AbstractFurnace.
-            LOGGER.info("Un-cooking the thing.");
             dualSmelterBlockEntity.cookTime = Math.min(Math.max(0, dualSmelterBlockEntity.cookTime - 2), dualSmelterBlockEntity.cookTimeTotal);
         }
         if (wasBurning != dualSmelterBlockEntity.isBurning()) {
