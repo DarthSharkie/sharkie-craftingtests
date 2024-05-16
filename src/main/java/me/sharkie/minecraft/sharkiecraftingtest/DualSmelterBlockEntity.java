@@ -35,7 +35,7 @@ import java.util.Map;
 
 public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
+    public static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
 
     static BlockEntityType<DualSmelterBlockEntity> BLOCK_ENTITY_TYPE;
 

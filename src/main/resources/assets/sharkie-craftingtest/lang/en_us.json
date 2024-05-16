@@ -1,4 +1,5 @@
 {
   "block.sharkie-craftingtest.dual_smelter_block": "Dual Smelter",
-  "container.dual-smelting": "Dual Smelter"
+  "container.dual-smelting": "Dual Smelter",
+  "gui.recipebook.toggleRecipes.dualSmelter": "Showing Alloys"
 }

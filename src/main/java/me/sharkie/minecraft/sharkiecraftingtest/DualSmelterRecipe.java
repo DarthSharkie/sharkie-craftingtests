@@ -110,7 +110,7 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
 
     @Override
     public RecipeSerializer<?> getSerializer() {
-        return null;
+        return Serializer.INSTANCE;
     }
 
     @Override

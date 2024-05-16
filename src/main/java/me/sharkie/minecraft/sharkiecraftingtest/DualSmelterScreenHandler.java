@@ -6,21 +6,27 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.recipe.Recipe;
+import net.minecraft.recipe.RecipeEntry;
+import net.minecraft.recipe.RecipeInputProvider;
+import net.minecraft.recipe.RecipeMatcher;
+import net.minecraft.recipe.book.RecipeBookCategory;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.resource.featuretoggle.FeatureFlags;
+import net.minecraft.screen.AbstractRecipeScreenHandler;
 import net.minecraft.screen.ArrayPropertyDelegate;
 import net.minecraft.screen.PropertyDelegate;
-import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.util.Identifier;
+import net.minecraft.world.World;
 
 import java.util.Map;
 
-public class DualSmelterScreenHandler extends ScreenHandler {
+public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Inventory> {
 
     public static ScreenHandlerType<DualSmelterScreenHandler> SCREEN_HANDLER_TYPE;
 
@@ -35,6 +41,7 @@ public class DualSmelterScreenHandler extends ScreenHandler {
 
     private final Inventory inventory;
     private final PropertyDelegate propertyDelegate;
+    private final World world;
 
     public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory) {
         this(syncId, playerInventory, SmeltingInventory.ofSize(4), new ArrayPropertyDelegate(4));
@@ -50,6 +57,9 @@ public class DualSmelterScreenHandler extends ScreenHandler {
         // Configure the PropertyDelegate; this syncs state between logical client/server
         this.propertyDelegate = propertyDelegate;
         this.addProperties(this.propertyDelegate);
+
+        // Get a reference to the World
+        this.world = playerInventory.player.getWorld();
 
         // Compute Slots shown on this screen, including crafting slots, player inventory, and player hotbar
         // Crafting
@@ -149,5 +159,54 @@ public class DualSmelterScreenHandler extends ScreenHandler {
 
     private boolean isFuel(ItemStack itemStack) {
         return FUEL_BURN_TIME_MAP.containsKey(itemStack.getItem());
+    }
+
+    @Override
+    public void populateRecipeFinder(RecipeMatcher finder) {
+        if (this.inventory instanceof RecipeInputProvider recipeInputProvider) {
+            recipeInputProvider.provideRecipeInputs(finder);
+        }
+    }
+
+    @Override
+    public void clearCraftingSlots() {
+        this.getSlot(0).setStackNoCallbacks(ItemStack.EMPTY);
+        this.getSlot(1).setStackNoCallbacks(ItemStack.EMPTY);
+        this.getSlot(3).setStackNoCallbacks(ItemStack.EMPTY);
+    }
+
+    @Override
+    public boolean matches(RecipeEntry<? extends Recipe<Inventory>> recipe) {
+        return recipe.value().matches(this.inventory, this.world);
+    }
+
+    @Override
+    public int getCraftingResultSlotIndex() {
+        return 3;
+    }
+
+    @Override
+    public int getCraftingWidth() {
+        return 2;
+    }
+
+    @Override
+    public int getCraftingHeight() {
+        return 1;
+    }
+
+    @Override
+    public int getCraftingSlotCount() {
+        return 2;
+    }
+
+    @Override
+    public RecipeBookCategory getCategory() {
+        return RecipeBookCategory.FURNACE;
+    }
+
+    @Override
+    public boolean canInsertIntoSlot(int index) {
+        return index != 2;
     }
 }

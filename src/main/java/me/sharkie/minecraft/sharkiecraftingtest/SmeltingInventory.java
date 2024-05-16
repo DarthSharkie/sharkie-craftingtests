@@ -4,11 +4,13 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.recipe.RecipeInputProvider;
+import net.minecraft.recipe.RecipeMatcher;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.Direction;
 import org.jetbrains.annotations.Nullable;
 
-public class SmeltingInventory implements SidedInventory {
+public class SmeltingInventory implements SidedInventory, RecipeInputProvider {
 
     // Should this simply be an array?
     private final DefaultedList<ItemStack> items;
@@ -112,5 +114,12 @@ public class SmeltingInventory implements SidedInventory {
     @Override
     public boolean canExtract(int slot, ItemStack stack, Direction dir) {
         return true;
+    }
+
+    @Override
+    public void provideRecipeInputs(RecipeMatcher finder) {
+        for (ItemStack itemStack : this.items) {
+            finder.addInput(itemStack);
+        }
     }
 }
