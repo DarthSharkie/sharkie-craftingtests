@@ -31,6 +31,8 @@ public class DualSmelterScreen extends HandledScreen<DualSmelterScreenHandler> {
         RenderSystem.setShaderTexture(0, TEXTURE);
         int x = (width - backgroundWidth) / 2;
         int y = (height - backgroundHeight) / 2;
+        // Recommendation is to call the version with the following signature:
+        // texture, x, y, width, height, u, v, regionWidth, regionHeight, textureWidth, textureHeight
         context.drawTexture(TEXTURE, x, y, 0, 0, backgroundWidth, backgroundHeight);
 
         if (this.handler.isBurning()) {
