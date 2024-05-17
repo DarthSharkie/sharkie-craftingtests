@@ -14,6 +14,7 @@ import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.dynamic.Codecs;
 import net.minecraft.world.World;
 
@@ -100,12 +101,20 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
 
     @Override
     public boolean fits(int width, int height) {
-        return true;
+        return width == 2 && height == 1;
     }
 
     @Override
     public ItemStack getResult(DynamicRegistryManager registryManager) {
         return this.getOutput();
+    }
+
+    @Override
+    public DefaultedList<Ingredient> getIngredients() {
+        DefaultedList<Ingredient> defaultedList = DefaultedList.of();
+        defaultedList.add(this.inputA);
+        defaultedList.add(this.inputB);
+        return defaultedList;
     }
 
     @Override

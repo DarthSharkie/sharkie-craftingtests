@@ -95,3 +95,7 @@ publishing {
 test {
     useJUnitPlatform()
 }
+
+loom {
+    accessWidenerPath = file("src/main/resources/sharkie-craftingtest.accesswidener")
+}

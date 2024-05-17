@@ -17,6 +17,10 @@
       "me.sharkie.minecraft.sharkiecraftingtest.SharkieCraftingTest"
     ]
   },
+  "mixins": [
+    "sharkie-craftingtest.mixins.json"
+  ],
+  "accessWidener": "sharkie-craftingtest.accesswidener",
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric": "*",

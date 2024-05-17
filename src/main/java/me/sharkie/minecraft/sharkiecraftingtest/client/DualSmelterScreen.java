@@ -40,10 +40,10 @@ public class DualSmelterScreen extends HandledScreen<DualSmelterScreenHandler> i
         this.narrow = this.width < 379;
         this.recipeBook.initialize(this.width, this.height, this.client, this.narrow, this.handler);
         this.x = this.recipeBook.findLeftEdge(this.width, this.backgroundWidth);
-        this.addDrawableChild(new TexturedButtonWidget(this.x + 20, this.height / 2 - 49, 20, 18, RecipeBookWidget.BUTTON_TEXTURES, button -> {
+        this.addDrawableChild(new TexturedButtonWidget(this.x + 10, this.height / 2 - 49, 20, 18, RecipeBookWidget.BUTTON_TEXTURES, button -> {
             this.recipeBook.toggleOpen();
             this.x = this.recipeBook.findLeftEdge(this.width, this.backgroundWidth);
-            button.setPosition(this.x + 20, this.height / 2 - 49);
+            button.setPosition(this.x + 10, this.height / 2 - 49);
         }));
         // Center the title
         titleX = (backgroundWidth - textRenderer.getWidth(title)) / 2;

@@ -1,0 +1,3 @@
+accessWidener v2 named
+
+accessible method net/minecraft/client/recipebook/ClientRecipeBook getGroupForRecipe (Lnet/minecraft/recipe/RecipeEntry;)Lnet/minecraft/client/recipebook/RecipeBookGroup;
