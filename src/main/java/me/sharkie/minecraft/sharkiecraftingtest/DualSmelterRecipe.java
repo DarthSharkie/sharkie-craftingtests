@@ -3,6 +3,7 @@ package me.sharkie.minecraft.sharkiecraftingtest;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.recipe.Ingredient;
@@ -18,6 +19,8 @@ import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.dynamic.Codecs;
 import net.minecraft.world.World;
 
+import java.util.List;
+
 /**
  * Represents a {@link Recipe} crafted in a {@link me.sharkie.minecraft.sharkiecraftingtest.client.DualSmelterScreen}.
  * <p>
@@ -26,13 +29,20 @@ import net.minecraft.world.World;
  * {
  *   "type": "sharkie-craftingtest:dual_smelter",
  *   "group": [group],
- *   "ingredientA": {
- *     "item": "<mod>:<item>"
+ *   "inputs": [
+ *     {
+ *       "item": "<mod>:<item>",
+ *       "count": <positive-int>?
+ *     },
+ *     {
+ *       "item": "<mod>:<item>",
+ *       "count": <positive-int>?
+ *     }
+ *   ],
+ *   "result": {
+ *     "item": "<mod>:<item>",
+ *     "count": <positive-int>?
  *   },
- *   "ingredientB": {
- *     "item": "<mod>:<item>"
- *   },
- *   "result": "<mod>:<item>",
  *   "cookingtime": [cooking time]
  * }
  * }</pre>
@@ -44,36 +54,32 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
         Registry.register(Registries.RECIPE_SERIALIZER, new Identifier(modid, Serializer.ID), Serializer.INSTANCE);
     }
 
-    private final Identifier id;
-    private final Ingredient inputA;
-    private final Ingredient inputB;
+    private final List<ItemStack> inputs;
     private final ItemStack output;
     private final String group;
     private final int cookingTime;
 
-    public DualSmelterRecipe(Ingredient inputA, Ingredient inputB, ItemStack output, String group, int cookingTime) {
-        this.id = new Identifier("sharkie-craftingtest", "rose_gold_recipe");
-        this.inputA = inputA;
-        this.inputB = inputB;
+    public DualSmelterRecipe(List<ItemStack> inputs, ItemStack output, String group, int cookingTime) {
+        this.inputs = inputs;
         this.output = output;
         this.group = group;
         this.cookingTime = cookingTime;
     }
 
-    public Ingredient getInputA() {
-        return inputA;
+    public List<ItemStack> getInputs() {
+        return this.inputs;
     }
 
-    public Ingredient getInputB() {
-        return inputB;
+    public ItemStack getInputA() {
+        return this.inputs.get(0);
+    }
+
+    public ItemStack getInputB() {
+        return this.inputs.get(1);
     }
 
     public ItemStack getOutput() {
         return output;
-    }
-
-    public Identifier getId() {
-        return id;
     }
 
     public String getGroup() {
@@ -91,7 +97,9 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
             return false;
         }
         // Consider checking fuels depending on recipe, could rely on specific fuels for enough heat?
-        return inputA.test(inventory.getStack(0)) && inputB.test(inventory.getStack(1));
+        return this.getInputA().getCount() <= inventory.getStack(0).getCount()
+               && ItemStack.areItemsEqual(this.getInputA(), inventory.getStack(0))
+               && ItemStack.areItemsEqual(this.getInputB(), inventory.getStack(1));
     }
 
     @Override
@@ -112,8 +120,8 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
     @Override
     public DefaultedList<Ingredient> getIngredients() {
         DefaultedList<Ingredient> defaultedList = DefaultedList.of();
-        defaultedList.add(this.inputA);
-        defaultedList.add(this.inputB);
+        defaultedList.add(Ingredient.ofStacks(this.getInputA()));
+        defaultedList.add(Ingredient.ofStacks(this.getInputB()));
         return defaultedList;
     }
 
@@ -143,16 +151,23 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
         public static final Serializer INSTANCE = new Serializer();
         public static final String ID = "dual_smelter";
 
+        private static final Codec<ItemStack> ITEM_STACK_CODEC = createItemStackCodec();
+
+        private static Codec<ItemStack> createItemStackCodec() {
+            MapCodec<Item> item = Registries.ITEM.getCodec().fieldOf("item");
+            MapCodec<Integer> count = Codecs.createStrictOptionalFieldCodec(Codecs.POSITIVE_INT, "count", 1);
+            return RecordCodecBuilder.create(instance -> instance.group(item.forGetter(ItemStack::getItem), count.forGetter(ItemStack::getCount))
+                                                                 .apply(instance, ItemStack::new));
+        }
+
         private static final Codec<DualSmelterRecipe> CODEC = createCodec();
 
         private static Codec<DualSmelterRecipe> createCodec() {
-            MapCodec<Ingredient> ingredientACodec = Ingredient.DISALLOW_EMPTY_CODEC.fieldOf("ingredientA");
-            MapCodec<Ingredient> ingredientBCodec = Ingredient.DISALLOW_EMPTY_CODEC.fieldOf("ingredientB");
+            MapCodec<List<ItemStack>> inputsCodec = ITEM_STACK_CODEC.listOf().fieldOf("inputs");
             MapCodec<ItemStack> outputCodec = ItemStack.RECIPE_RESULT_CODEC.fieldOf("result");
             MapCodec<String> groupCodec = Codecs.createStrictOptionalFieldCodec(Codec.STRING, "group", CookingRecipeCategory.MISC.asString());
-            MapCodec<Integer> cookingTimeCodec = Codec.INT.fieldOf("cookingtime");
-            return RecordCodecBuilder.create(instance -> instance.group(ingredientACodec.forGetter(DualSmelterRecipe::getInputA),
-                                                                        ingredientBCodec.forGetter(DualSmelterRecipe::getInputB),
+            MapCodec<Integer> cookingTimeCodec = Codecs.POSITIVE_INT.fieldOf("cookingtime");
+            return RecordCodecBuilder.create(instance -> instance.group(inputsCodec.forGetter(DualSmelterRecipe::getInputs),
                                                                         outputCodec.forGetter(DualSmelterRecipe::getOutput),
                                                                         groupCodec.forGetter(DualSmelterRecipe::getGroup),
                                                                         cookingTimeCodec.forGetter(DualSmelterRecipe::getCookingTime))
@@ -166,18 +181,20 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
 
         @Override
         public DualSmelterRecipe read(PacketByteBuf buf) {
-            Ingredient ingredientA = Ingredient.fromPacket(buf);
-            Ingredient ingredientB = Ingredient.fromPacket(buf);
+            // No need to read into a list
+            ItemStack inputA = buf.readItemStack();
+            ItemStack inputB = buf.readItemStack();
             ItemStack output = buf.readItemStack();
             String group = buf.readString();
             int cookingTime = buf.readInt();
-            return new DualSmelterRecipe(ingredientA, ingredientB, output, group, cookingTime);
+            return new DualSmelterRecipe(List.of(inputA, inputB), output, group, cookingTime);
         }
 
         @Override
         public void write(PacketByteBuf buf, DualSmelterRecipe recipe) {
-            recipe.getInputA().write(buf);
-            recipe.getInputB().write(buf);
+            // No need to iterate through the list
+            buf.writeItemStack(recipe.getInputA());
+            buf.writeItemStack(recipe.getInputB());
             buf.writeItemStack(recipe.getOutput());
             buf.writeString(recipe.getGroup());
             buf.writeInt(recipe.getCookingTime());

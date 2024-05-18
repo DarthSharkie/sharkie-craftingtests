@@ -71,8 +71,8 @@ public class DualSmelterRecipeBookScreen extends RecipeBookWidget {
         }
 
         // Show Ingredients
-        this.ghostSlots.addSlot(dualSmelterRecipe.getInputA(), slots.get(0).x, slots.get(0).y);
-        this.ghostSlots.addSlot(dualSmelterRecipe.getInputB(), slots.get(1).x, slots.get(1).y);
+        this.ghostSlots.addSlot(Ingredient.ofStacks(dualSmelterRecipe.getInputA()), slots.get(0).x, slots.get(0).y);
+        this.ghostSlots.addSlot(Ingredient.ofStacks(dualSmelterRecipe.getInputB()), slots.get(1).x, slots.get(1).y);
     }
 
     private Set<Item> getAllowedFuels() {

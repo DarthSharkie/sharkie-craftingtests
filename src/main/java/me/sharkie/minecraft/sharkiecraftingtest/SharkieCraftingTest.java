@@ -12,10 +12,13 @@ import net.minecraft.util.Identifier;
 public class SharkieCraftingTest implements ModInitializer {
     public static final String MODID = "sharkie-craftingtest";
 
+    public static final Item ROSE_GOLD_INGOT = Registry.register(Registries.ITEM,
+                                                                 new Identifier(MODID, "rose_gold_ingot"),
+                                                                 new Item(new Item.Settings()));
+
     @Override
     public void onInitialize() {
-        Item roseGoldIngot = Registry.register(Registries.ITEM, new Identifier(MODID, "rose_gold_ingot"), new Item(new Item.Settings()));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(group -> group.addAfter(Items.GOLD_INGOT, roseGoldIngot));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(group -> group.addAfter(Items.GOLD_INGOT, ROSE_GOLD_INGOT));
 
         DualSmelterBlock.register(MODID);
         DualSmelterBlockEntity.register(MODID, DualSmelterBlock.BLOCK);

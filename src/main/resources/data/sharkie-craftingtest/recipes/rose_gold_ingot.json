@@ -1,12 +1,15 @@
 {
   "type": "sharkie-craftingtest:dual_smelter",
   "group": "alloys",
-  "ingredientA": {
-    "item": "minecraft:copper_ingot"
-  },
-  "ingredientB": {
-    "item": "minecraft:gold_ingot"
-  },
+  "inputs": [
+    {
+      "item": "minecraft:copper_ingot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:gold_ingot"
+    }
+  ],
   "result": {
     "item": "sharkie-craftingtest:rose_gold_ingot",
     "count": 4
