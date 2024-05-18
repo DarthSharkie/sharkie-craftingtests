@@ -4,8 +4,10 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeInputProvider;
 import net.minecraft.recipe.RecipeMatcher;
+import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.Direction;
 import org.jetbrains.annotations.Nullable;
@@ -21,6 +23,55 @@ public class SmeltingInventory implements SidedInventory, RecipeInputProvider {
 
     public static SmeltingInventory ofSize(int size) {
         return new SmeltingInventory(DefaultedList.ofSize(size, ItemStack.EMPTY));
+    }
+
+    public boolean canFitOutput(DynamicRegistryManager registryManager, @Nullable RecipeEntry<?> recipeEntry) {
+        if (!this.hasInputs() || recipeEntry == null) {
+            // Missing input(s) or missing recipe
+            return false;
+        }
+        ItemStack resultPreviewStack = recipeEntry.value().getResult(registryManager);
+        if (resultPreviewStack.isEmpty()) {
+            // Recipe doesn't craft anything???
+            return false;
+        }
+        ItemStack outputStack = this.getOutputStack();
+        if (outputStack.isEmpty()) {
+            // No current output == craft away!
+            return true;
+        }
+        if (!ItemStack.areItemsEqual(outputStack, resultPreviewStack)) {
+            // If output already exists, must make more of the exact same item.
+            return false;
+        }
+        if (outputStack.getCount() < this.getMaxCountPerStack() && outputStack.getCount() < outputStack.getMaxCount()) {
+            // If the stack is less than both the inventory's max stack size _and_ the item's max stack size, then craft!
+            return true;
+        }
+        // If the output stack is smaller than the output item's max stack size, then craft, else don't.
+        return outputStack.getCount() < resultPreviewStack.getMaxCount();
+    }
+
+    public boolean craftRecipe(DynamicRegistryManager registryManager, @Nullable RecipeEntry<?> recipeEntry) {
+        if (recipeEntry == null || !this.canFitOutput(registryManager, recipeEntry)) {
+            // If no recipe, or the output situation changed, do not craft
+            return false;
+        }
+
+        // Quick references
+        ItemStack resultStack = recipeEntry.value().getResult(registryManager);
+        ItemStack outputStack = this.getOutputStack();
+
+        if (outputStack.isEmpty()) {
+            // No output, so copy over
+            this.setStack(3, resultStack.copy());
+        } else if (outputStack.isOf(resultStack.getItem())) {
+            // Adding to output, so increment appropriately
+            outputStack.increment(resultStack.getCount());
+        }
+        this.getStack(0).decrement(((DualSmelterRecipe) recipeEntry.value()).getInputA().getCount());
+        this.getStack(1).decrement(((DualSmelterRecipe) recipeEntry.value()).getInputB().getCount());
+        return true;
     }
 
     /**

@@ -21,7 +21,6 @@ import net.minecraft.state.StateManager;
 import net.minecraft.state.property.BooleanProperty;
 import net.minecraft.state.property.DirectionProperty;
 import net.minecraft.state.property.Properties;
-import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.BlockMirror;
 import net.minecraft.util.BlockRotation;
@@ -73,11 +72,6 @@ public class DualSmelterBlock extends BlockWithEntity implements BlockEntityProv
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (!world.isClient()) {
             if (world.getBlockEntity(pos) instanceof DualSmelterBlockEntity dualSmelterBlockEntity) {
-                dualSmelterBlockEntity.incrementUses();
-                player.sendMessage(Text.literal(String.format("Uses: %d, Ticks: %d",
-                                                              dualSmelterBlockEntity.getUses(),
-                                                              dualSmelterBlockEntity.getTicks())), false);
-
                 // Show the ScreenHandler created by the block
                 NamedScreenHandlerFactory screenHandlerFactory = state.createScreenHandlerFactory(world, pos);
                 if (screenHandlerFactory != null) {

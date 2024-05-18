@@ -19,7 +19,6 @@ import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeManager;
 import net.minecraft.recipe.RecipeUnlocker;
-import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.screen.NamedScreenHandlerFactory;
@@ -160,68 +159,68 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
 
     // Runs logic on game tick
     public static void tick(World world, BlockPos blockPos, BlockState blockState, DualSmelterBlockEntity dualSmelterBlockEntity) {
-        final boolean wasBurning = dualSmelterBlockEntity.isBurning();
+        dualSmelterBlockEntity.tick(world, blockPos, blockState);
+    }
+
+    private void tick(World world, BlockPos blockPos, BlockState blockState) {
+        final boolean wasBurning = this.isBurning();
         boolean burningChanged = false;
 
         if (wasBurning) {
             // We're burning, need to tick that down
-            dualSmelterBlockEntity.burnTime--;
+            this.burnTime--;
         }
-        ItemStack fuelStack = dualSmelterBlockEntity.inventory.getFuelStack();
-        boolean hasInput1 = !dualSmelterBlockEntity.inventory.getStack(0).isEmpty();
-        boolean hasInput2 = !dualSmelterBlockEntity.inventory.getStack(1).isEmpty();
+        ItemStack fuelStack = this.inventory.getFuelStack();
+        boolean hasInput1 = !this.inventory.getStack(0).isEmpty();
+        boolean hasInput2 = !this.inventory.getStack(1).isEmpty();
         boolean hasFuel = !fuelStack.isEmpty();
 
-        if (dualSmelterBlockEntity.isBurning() || (hasInput1 && hasInput2 && hasFuel)) {
+        if (this.isBurning() || (hasInput1 && hasInput2 && hasFuel)) {
             // Figure out if there's a legit recipe with these ingredients
-            RecipeEntry<DualSmelterRecipe> recipeEntry = dualSmelterBlockEntity.findRecipe();
-            if (!dualSmelterBlockEntity.isBurning() && canAcceptRecipeOutput(world.getRegistryManager(),
-                                                                             recipeEntry,
-                                                                             dualSmelterBlockEntity.inventory)) {
+            RecipeEntry<DualSmelterRecipe> recipeEntry = this.findRecipe();
+            if (!this.isBurning() && this.inventory.canFitOutput(world.getRegistryManager(), recipeEntry)) {
                 LOGGER.info("Start burning {} to produce {}", fuelStack, recipeEntry.id());
                 // Start the burn!
-                dualSmelterBlockEntity.fuelTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
-                dualSmelterBlockEntity.burnTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
-                dualSmelterBlockEntity.cookTime = 0;
-                dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getSmeltingTime();
+                this.fuelTime = this.getFuelTime(fuelStack);
+                this.burnTime = this.getFuelTime(fuelStack);
+                this.cookTime = 0;
+                this.cookTimeTotal = recipeEntry.value().getSmeltingTime();
                 // Could be zero if the fuel wasn't found, so double check before using the fuel.
-                if (dualSmelterBlockEntity.isBurning()) {
+                if (this.isBurning()) {
                     burningChanged = true;
                     Item fuel = fuelStack.getItem();
                     fuelStack.decrement(1);
                     if (fuelStack.isEmpty()) {
                         Item fuelRecipeRemainder = fuel.getRecipeRemainder();
                         ItemStack remainderStack = fuelRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelRecipeRemainder);
-                        dualSmelterBlockEntity.inventory.setStack(2, remainderStack);
+                        this.inventory.setStack(2, remainderStack);
                     }
                 }
             }
             // Now, we could be burning, so check that
-            if (dualSmelterBlockEntity.isBurning() && canAcceptRecipeOutput(world.getRegistryManager(),
-                                                                            recipeEntry,
-                                                                            dualSmelterBlockEntity.inventory)) {
-                dualSmelterBlockEntity.cookTime++;
+            if (this.isBurning() && this.inventory.canFitOutput(world.getRegistryManager(), recipeEntry)) {
+                this.cookTime++;
                 // Might have finished
-                if (dualSmelterBlockEntity.cookTime == dualSmelterBlockEntity.cookTimeTotal) {
-                    dualSmelterBlockEntity.cookTime = 0;
-                    dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getSmeltingTime();
-                    if (craftRecipe(world.getRegistryManager(), recipeEntry, dualSmelterBlockEntity.inventory)) {
+                if (this.cookTime == this.cookTimeTotal) {
+                    this.cookTime = 0;
+                    this.cookTimeTotal = recipeEntry.value().getSmeltingTime();
+                    if (this.inventory.craftRecipe(world.getRegistryManager(), recipeEntry)) {
                         // Action the crafted recipe
-                        dualSmelterBlockEntity.onCraftedRecipe(recipeEntry);
+                        this.onCraftedRecipe(recipeEntry);
                     }
                     burningChanged = true;
                 }
             } else {
                 // Maybe burning, but nowhere to put the output, so reset cook time.
-                dualSmelterBlockEntity.cookTime = 0;
+                this.cookTime = 0;
             }
-        } else if (!dualSmelterBlockEntity.isBurning() && dualSmelterBlockEntity.cookTime > 0) {
+        } else if (!this.isBurning() && this.cookTime > 0) {
             // Not burning, but something's partially cooked.  Start "un-cooking it" to mimic the AbstractFurnace.
-            dualSmelterBlockEntity.cookTime = Math.min(Math.max(0, dualSmelterBlockEntity.cookTime - 2), dualSmelterBlockEntity.cookTimeTotal);
+            this.cookTime = Math.min(Math.max(0, this.cookTime - 2), this.cookTimeTotal);
         }
-        if (wasBurning != dualSmelterBlockEntity.isBurning()) {
+        if (wasBurning != this.isBurning()) {
             burningChanged = true;
-            blockState = blockState.with(DualSmelterBlock.LIT, dualSmelterBlockEntity.isBurning());
+            blockState = blockState.with(DualSmelterBlock.LIT, this.isBurning());
             world.setBlockState(blockPos, blockState, Block.NOTIFY_ALL);
         }
         if (burningChanged) {
@@ -233,60 +232,6 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         return this.matchGetter.getFirstMatch(this.inventory, world).orElse(null);
     }
 
-    private static boolean canAcceptRecipeOutput(DynamicRegistryManager registryManager,
-                                                 @Nullable RecipeEntry<?> recipeEntry,
-                                                 SmeltingInventory smeltingInventory) {
-        if (!smeltingInventory.hasInputs() || recipeEntry == null) {
-            // Missing input(s) or missing recipe
-            return false;
-        }
-        ItemStack resultPreviewStack = recipeEntry.value().getResult(registryManager);
-        if (resultPreviewStack.isEmpty()) {
-            // Recipe doesn't craft anything???
-            return false;
-        }
-        ItemStack outputStack = smeltingInventory.getOutputStack();
-        if (outputStack.isEmpty()) {
-            // No current output == craft away!
-            return true;
-        }
-        if (!ItemStack.areItemsEqual(outputStack, resultPreviewStack)) {
-            // If output already exists, must make more of the exact same item.
-            return false;
-        }
-        if (outputStack.getCount() < smeltingInventory.getMaxCountPerStack() && outputStack.getCount() < outputStack.getMaxCount()) {
-            // If the stack is less than both the inventory's max stack size _and_ the item's max stack size, then craft!
-            return true;
-        }
-        // If the output stack is smaller than the output item's max stack size, then craft, else don't.
-        return outputStack.getCount() < resultPreviewStack.getMaxCount();
-    }
-
-    private static boolean craftRecipe(DynamicRegistryManager registryManager,
-                                       @Nullable RecipeEntry<?> recipeEntry,
-                                       SmeltingInventory smeltingInventory) {
-        if (recipeEntry == null || !canAcceptRecipeOutput(registryManager, recipeEntry, smeltingInventory)) {
-            // If no recipe, or the output situation changed, do not craft
-            return false;
-        }
-
-        // Quick references
-        ItemStack inputA = smeltingInventory.getStack(0);
-        ItemStack inputB = smeltingInventory.getStack(1);
-        ItemStack resultStack = recipeEntry.value().getResult(registryManager);
-        ItemStack outputStack = smeltingInventory.getOutputStack();
-
-        if (outputStack.isEmpty()) {
-            // No output, so copy over
-            smeltingInventory.setStack(3, resultStack.copy());
-        } else if (outputStack.isOf(resultStack.getItem())) {
-            // Adding to output, so increment appropriately
-            outputStack.increment(resultStack.getCount());
-        }
-        inputA.decrement(((DualSmelterRecipe) recipeEntry.value()).getInputA().getCount());
-        inputB.decrement(((DualSmelterRecipe) recipeEntry.value()).getInputB().getCount());
-        return true;
-    }
 
     public Inventory getInventory() {
         return this.inventory;
