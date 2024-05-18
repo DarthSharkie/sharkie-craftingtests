@@ -28,8 +28,7 @@ class DualSmelterRecipeTest {
 
         DualSmelterRecipe recipe = new DualSmelterRecipe(List.of(new ItemStack(Items.COPPER_INGOT, 3), new ItemStack(Items.GOLD_INGOT)),
                                                          new ItemStack(SharkieCraftingTest.ROSE_GOLD_INGOT, 4),
-                                                         "misc",
-                                                         200);
+                                                         "alloys");
 
         // Act
         boolean result = recipe.matches(inventory, mock(World.class));

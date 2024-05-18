@@ -5,6 +5,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.entity.ExperienceOrbEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventories;
@@ -17,15 +18,18 @@ import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeManager;
+import net.minecraft.recipe.RecipeUnlocker;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.screen.NamedScreenHandlerFactory;
 import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,11 +37,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
-public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory {
+public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHandlerFactory, RecipeUnlocker {
     private static final Logger LOGGER = LogManager.getLogger();
     public static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
 
     static BlockEntityType<DualSmelterBlockEntity> BLOCK_ENTITY_TYPE;
+    @Nullable
+    private PlayerEntity player;
 
     public static void register(String modId, Block block) {
         BLOCK_ENTITY_TYPE = Registry.register(Registries.BLOCK_ENTITY_TYPE,
@@ -49,12 +55,6 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
 
     // Inventory: two inputs, one fuel, one output
     private final SmeltingInventory inventory = SmeltingInventory.ofSize(4);
-
-    private static final String USES_KEY = "uses";
-    private int uses = 0;
-
-    private static final String TICKS_KEY = "ticks";
-    private int ticks = 0;
 
     public static final int BURN_TIME_PROPERTY = 0;
     private static final String BURN_TIME_KEY = "burnTime";
@@ -70,6 +70,9 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     public static final int COOK_TIME_TOTAL_PROPERTY = 3;
     private static final String COOK_TIME_TOTAL_KEY = "cookTimeTotal";
     private int cookTimeTotal = 0;
+
+    @Nullable
+    private RecipeEntry<?> lastRecipe;
 
     private final PropertyDelegate propertyDelegate = new PropertyDelegate() {
         @Override
@@ -119,10 +122,9 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         this.matchGetter = RecipeManager.createCachedMatchGetter(DualSmelterRecipe.Type.INSTANCE);
     }
 
+    // Storage and rehydration on save/load
     @Override
     protected void writeNbt(NbtCompound nbt) {
-        nbt.putInt(USES_KEY, this.uses);
-        nbt.putInt(TICKS_KEY, this.ticks);
         nbt.putShort(BURN_TIME_KEY, (short) this.burnTime);
         nbt.putShort(COOK_TIME_KEY, (short) this.cookTime);
         nbt.putShort(COOK_TIME_TOTAL_KEY, (short) this.cookTimeTotal);
@@ -134,8 +136,6 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     public void readNbt(NbtCompound nbt) {
         // Read in reverse order
         super.readNbt(nbt);
-        this.uses = nbt.getInt(USES_KEY);
-        this.ticks = nbt.getInt(TICKS_KEY);
         this.burnTime = nbt.getShort(BURN_TIME_KEY);
         this.cookTime = nbt.getShort(COOK_TIME_KEY);
         this.cookTimeTotal = nbt.getShort(COOK_TIME_TOTAL_KEY);
@@ -160,14 +160,12 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
 
     // Runs logic on game tick
     public static void tick(World world, BlockPos blockPos, BlockState blockState, DualSmelterBlockEntity dualSmelterBlockEntity) {
-        dualSmelterBlockEntity.ticks++;
         final boolean wasBurning = dualSmelterBlockEntity.isBurning();
         boolean burningChanged = false;
 
         if (wasBurning) {
             // We're burning, need to tick that down
             dualSmelterBlockEntity.burnTime--;
-            //LOGGER.info("New burn time: {}/{}", dualSmelterBlockEntity.burnTime, dualSmelterBlockEntity.fuelTime);
         }
         ItemStack fuelStack = dualSmelterBlockEntity.inventory.getFuelStack();
         boolean hasInput1 = !dualSmelterBlockEntity.inventory.getStack(0).isEmpty();
@@ -185,7 +183,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                 dualSmelterBlockEntity.fuelTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
                 dualSmelterBlockEntity.burnTime = dualSmelterBlockEntity.getFuelTime(fuelStack);
                 dualSmelterBlockEntity.cookTime = 0;
-                dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getCookingTime();
+                dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getSmeltingTime();
                 // Could be zero if the fuel wasn't found, so double check before using the fuel.
                 if (dualSmelterBlockEntity.isBurning()) {
                     burningChanged = true;
@@ -203,14 +201,13 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
                                                                             recipeEntry,
                                                                             dualSmelterBlockEntity.inventory)) {
                 dualSmelterBlockEntity.cookTime++;
-                //LOGGER.info("Cook time: {}/{}", dualSmelterBlockEntity.cookTime, dualSmelterBlockEntity.cookTimeTotal);
                 // Might have finished
                 if (dualSmelterBlockEntity.cookTime == dualSmelterBlockEntity.cookTimeTotal) {
                     dualSmelterBlockEntity.cookTime = 0;
-                    dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getCookingTime();
+                    dualSmelterBlockEntity.cookTimeTotal = recipeEntry.value().getSmeltingTime();
                     if (craftRecipe(world.getRegistryManager(), recipeEntry, dualSmelterBlockEntity.inventory)) {
-                        // Set last recipe and drop experience?
-                        LOGGER.info("Crafted a {}", recipeEntry.value().getResult(world.getRegistryManager()));
+                        // Action the crafted recipe
+                        dualSmelterBlockEntity.onCraftedRecipe(recipeEntry);
                     }
                     burningChanged = true;
                 }
@@ -233,7 +230,6 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     }
 
     private RecipeEntry<DualSmelterRecipe> findRecipe() {
-        // TODO: Stub recipe, then appropriate lookups
         return this.matchGetter.getFirstMatch(this.inventory, world).orElse(null);
     }
 
@@ -287,23 +283,9 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
             // Adding to output, so increment appropriately
             outputStack.increment(resultStack.getCount());
         }
-        // TODO: Short-term hack!!
-        inputA.decrement(3);
-        inputB.decrement(1);
+        inputA.decrement(((DualSmelterRecipe) recipeEntry.value()).getInputA().getCount());
+        inputB.decrement(((DualSmelterRecipe) recipeEntry.value()).getInputB().getCount());
         return true;
-    }
-
-    public void incrementUses() {
-        this.uses++;
-        markDirty();
-    }
-
-    public int getUses() {
-        return this.uses;
-    }
-
-    public int getTicks() {
-        return this.ticks;
     }
 
     public Inventory getInventory() {
@@ -318,6 +300,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     @Nullable
     @Override
     public ScreenHandler createMenu(int syncId, PlayerInventory playerInventory, PlayerEntity player) {
+        this.player = playerInventory.player;
         return new DualSmelterScreenHandler(syncId, playerInventory, this.inventory, propertyDelegate);
     }
 
@@ -330,5 +313,35 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
 
     private boolean isBurning() {
         return this.burnTime > 0;
+    }
+
+    @Override
+    public void setLastRecipe(@Nullable RecipeEntry<?> recipe) {
+        this.lastRecipe = recipe;
+    }
+
+    @Nullable
+    @Override
+    public RecipeEntry<?> getLastRecipe() {
+        return this.lastRecipe;
+    }
+
+    private void onCraftedRecipe(RecipeEntry<DualSmelterRecipe> recipeEntry) {
+        setLastRecipe(recipeEntry);
+        DualSmelterRecipe dualSmelterRecipe = recipeEntry.value();
+        unlockLastRecipe(this.player, dualSmelterRecipe.getInputs());
+        dropExperience(dualSmelterRecipe);
+    }
+
+    private void dropExperience(DualSmelterRecipe dualSmelterRecipe) {
+        // Amortize fractional points
+        int intExp = MathHelper.floor(dualSmelterRecipe.getExperience());
+        float fracExp = MathHelper.fractionalPart(dualSmelterRecipe.getExperience());
+        if (fracExp > 0.0F && Math.random() < fracExp) {
+            intExp++;
+        }
+        assert this.player != null;
+        // Drop XP wherever the player is; no need to come back to the entity.
+        ExperienceOrbEntity.spawn(((ServerPlayerEntity) this.player).getServerWorld(), this.player.getPos(), intExp);
     }
 }

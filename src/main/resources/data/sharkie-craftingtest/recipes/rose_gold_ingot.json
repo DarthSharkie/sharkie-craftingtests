@@ -14,5 +14,6 @@
     "item": "sharkie-craftingtest:rose_gold_ingot",
     "count": 4
   },
-  "cookingtime": 100
+  "smeltingTime": 250,
+  "experience": 1.1
 }

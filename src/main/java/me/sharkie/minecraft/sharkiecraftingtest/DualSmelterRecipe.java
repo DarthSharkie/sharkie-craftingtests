@@ -28,7 +28,7 @@ import java.util.List;
  * <pre>{@code
  * {
  *   "type": "sharkie-craftingtest:dual_smelter",
- *   "group": [group],
+ *   "group": "alloys",
  *   "inputs": [
  *     {
  *       "item": "<mod>:<item>",
@@ -43,27 +43,42 @@ import java.util.List;
  *     "item": "<mod>:<item>",
  *     "count": <positive-int>?
  *   },
- *   "cookingtime": [cooking time]
+ *   "smeltingTime": <positive-int>?,
+ *   "experience": <positive-float>?
  * }
  * }</pre>
  */
 public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
 
-    public static void register(String modid) {
-        Registry.register(Registries.RECIPE_TYPE, new Identifier(modid, Type.ID), Type.INSTANCE);
-        Registry.register(Registries.RECIPE_SERIALIZER, new Identifier(modid, Serializer.ID), Serializer.INSTANCE);
+    // Defined in game ticks
+    private static final int DEFAULT_SMELTING_TIME = 250;
+    private static final float DEFAULT_EXPERIENCE = 1.1F;
+
+    public static void register(String modId) {
+        Registry.register(Registries.RECIPE_TYPE, new Identifier(modId, Type.ID), Type.INSTANCE);
+        Registry.register(Registries.RECIPE_SERIALIZER, new Identifier(modId, Serializer.ID), Serializer.INSTANCE);
     }
 
     private final List<ItemStack> inputs;
     private final ItemStack output;
     private final String group;
-    private final int cookingTime;
+    private final int smeltingTime;
+    private final float experience;
 
-    public DualSmelterRecipe(List<ItemStack> inputs, ItemStack output, String group, int cookingTime) {
+    public DualSmelterRecipe(List<ItemStack> inputs, ItemStack output, String group, int smeltingTime, float experience) {
         this.inputs = inputs;
         this.output = output;
         this.group = group;
-        this.cookingTime = cookingTime;
+        this.smeltingTime = smeltingTime;
+        this.experience = experience;
+    }
+
+    DualSmelterRecipe(List<ItemStack> inputs, ItemStack output, String group, int smeltingTime) {
+        this(inputs, output, group, smeltingTime, DEFAULT_EXPERIENCE);
+    }
+
+    DualSmelterRecipe(List<ItemStack> inputs, ItemStack output, String group) {
+        this(inputs, output, group, DEFAULT_SMELTING_TIME, DEFAULT_EXPERIENCE);
     }
 
     public List<ItemStack> getInputs() {
@@ -86,8 +101,12 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
         return group;
     }
 
-    public int getCookingTime() {
-        return cookingTime;
+    public int getSmeltingTime() {
+        return smeltingTime;
+    }
+
+    public float getExperience() {
+        return experience;
     }
 
     @Override
@@ -166,11 +185,13 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
             MapCodec<List<ItemStack>> inputsCodec = ITEM_STACK_CODEC.listOf().fieldOf("inputs");
             MapCodec<ItemStack> outputCodec = ItemStack.RECIPE_RESULT_CODEC.fieldOf("result");
             MapCodec<String> groupCodec = Codecs.createStrictOptionalFieldCodec(Codec.STRING, "group", CookingRecipeCategory.MISC.asString());
-            MapCodec<Integer> cookingTimeCodec = Codecs.POSITIVE_INT.fieldOf("cookingtime");
+            MapCodec<Integer> smeltingTimeCodec = Codecs.createStrictOptionalFieldCodec(Codecs.POSITIVE_INT, "smeltingTime", DEFAULT_SMELTING_TIME);
+            MapCodec<Float> experienceCodec = Codecs.createStrictOptionalFieldCodec(Codecs.POSITIVE_FLOAT, "experience", DEFAULT_EXPERIENCE);
             return RecordCodecBuilder.create(instance -> instance.group(inputsCodec.forGetter(DualSmelterRecipe::getInputs),
                                                                         outputCodec.forGetter(DualSmelterRecipe::getOutput),
                                                                         groupCodec.forGetter(DualSmelterRecipe::getGroup),
-                                                                        cookingTimeCodec.forGetter(DualSmelterRecipe::getCookingTime))
+                                                                        smeltingTimeCodec.forGetter(DualSmelterRecipe::getSmeltingTime),
+                                                                        experienceCodec.forGetter(DualSmelterRecipe::getExperience))
                                                                  .apply(instance, DualSmelterRecipe::new));
         }
 
@@ -186,8 +207,9 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
             ItemStack inputB = buf.readItemStack();
             ItemStack output = buf.readItemStack();
             String group = buf.readString();
-            int cookingTime = buf.readInt();
-            return new DualSmelterRecipe(List.of(inputA, inputB), output, group, cookingTime);
+            int smeltingTime = buf.readInt();
+            float experience = buf.readFloat();
+            return new DualSmelterRecipe(List.of(inputA, inputB), output, group, smeltingTime, experience);
         }
 
         @Override
@@ -197,8 +219,8 @@ public class DualSmelterRecipe implements Recipe<SmeltingInventory> {
             buf.writeItemStack(recipe.getInputB());
             buf.writeItemStack(recipe.getOutput());
             buf.writeString(recipe.getGroup());
-            buf.writeInt(recipe.getCookingTime());
-
+            buf.writeInt(recipe.getSmeltingTime());
+            buf.writeFloat(recipe.getExperience());
         }
     }
 }

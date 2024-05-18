@@ -33,6 +33,8 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
     private static final TagKey<Item> INGOTS_TAGKEY = TagKey.of(RegistryKeys.ITEM, new Identifier("c", "ingots"));
     private static final Map<Item, Integer> FUEL_BURN_TIME_MAP = AbstractFurnaceBlockEntity.createFuelTimeMap();
 
+    private static final int OUTPUT_SLOT_INDEX = 3;
+
     public static void register(String modid) {
         SCREEN_HANDLER_TYPE = Registry.register(Registries.SCREEN_HANDLER,
                                                 new Identifier(modid, "dual_smelter_screen_handler"),
@@ -43,10 +45,16 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
     private final PropertyDelegate propertyDelegate;
     private final World world;
 
+    /**
+     * Client entry point; called by the server when the server wants the client to open this ScreenHandler.
+     */
     public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory) {
         this(syncId, playerInventory, SmeltingInventory.ofSize(4), new ArrayPropertyDelegate(4));
     }
 
+    /**
+     * BlockEntity entry point.  The provided container inventory is known by the entity and synced to the server.
+     */
     public DualSmelterScreenHandler(int syncId, PlayerInventory playerInventory, SmeltingInventory inventory, PropertyDelegate propertyDelegate) {
         super(SCREEN_HANDLER_TYPE, syncId);
         checkSize(inventory, 4);
@@ -66,7 +74,7 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
         this.addSlot(new Slot(inventory, 0, 36, 17));   // 16x16 input 1
         this.addSlot(new Slot(inventory, 1, 56, 17));   // 16x16 input 2
         this.addSlot(new Slot(inventory, 2, 46, 53));   // 16x16 fuel slot
-        this.addSlot(new Slot(inventory, 3, 116, 35));  // 24x24 output slot, offset by (4,4) to center it
+        this.addSlot(new OutputSlot(inventory, 3, 116, 35));  // 24x24 output slot, offset by (4,4) to center it
 
         //The player inventory
         for (int m = 0; m < 3; m++) {
@@ -110,6 +118,16 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
     }
 
     @Override
+    public void onClosed(PlayerEntity player) {
+        super.onClosed(player);
+    }
+
+    @Override
+    public boolean canInsertIntoSlot(ItemStack stack, Slot slot) {
+        return slot.getIndex() != OUTPUT_SLOT_INDEX && super.canInsertIntoSlot(stack, slot);
+    }
+
+    @Override
     public ItemStack quickMove(PlayerEntity player, int slotId) {
         // This handles Shift + Player Inventory (inserting into this screen's inventory)
         Slot slot = this.slots.get(slotId);
@@ -124,6 +142,7 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
             if (!this.insertItem(stack, this.inventory.size(), this.slots.size(), true)) {
                 return ItemStack.EMPTY;
             }
+            slot.onQuickTransfer(stack, originalStack);
         } else if (slotId < this.inventory.size()) {
             // Source slot is specific to this UI, try to return to player inventory, then player hotbar
             if (!this.insertItem(stack, this.inventory.size(), this.slots.size(), false)) {
@@ -149,6 +168,7 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
         if (originalStack.getCount() == stack.getCount()) {
             return ItemStack.EMPTY;
         }
+        slot.onTakeItem(player, stack);
         return originalStack;
     }
 
@@ -208,5 +228,16 @@ public class DualSmelterScreenHandler extends AbstractRecipeScreenHandler<Invent
     @Override
     public boolean canInsertIntoSlot(int index) {
         return index != 2;
+    }
+
+    static class OutputSlot extends Slot {
+        public OutputSlot(Inventory inventory, int index, int x, int y) {
+            super(inventory, index, x, y);
+        }
+
+        @Override
+        public boolean canInsert(ItemStack stack) {
+            return false;
+        }
     }
 }
