@@ -8,7 +8,8 @@
     "item": "minecraft:gold_ingot"
   },
   "result": {
-    "item": "minecraft:netherite_ingot"
+    "item": "sharkie-craftingtest:rose_gold_ingot",
+    "count": 4
   },
   "cookingtime": 100
 }

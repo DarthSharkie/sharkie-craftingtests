@@ -287,7 +287,8 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
             // Adding to output, so increment appropriately
             outputStack.increment(resultStack.getCount());
         }
-        inputA.decrement(1);
+        // TODO: Short-term hack!!
+        inputA.decrement(3);
         inputB.decrement(1);
         return true;
     }

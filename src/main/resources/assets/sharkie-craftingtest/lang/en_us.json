@@ -1,5 +1,6 @@
 {
   "block.sharkie-craftingtest.dual_smelter_block": "Dual Smelter",
   "container.dual-smelting": "Dual Smelter",
-  "gui.recipebook.toggleRecipes.dualSmelter": "Showing Alloys"
+  "gui.recipebook.toggleRecipes.dualSmelter": "Showing Alloys",
+  "item.sharkie-craftingtest.rose_gold_ingot": "Rose Gold Ingot"
 }
