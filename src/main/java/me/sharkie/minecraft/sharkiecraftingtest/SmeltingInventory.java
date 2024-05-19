@@ -4,10 +4,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeInputProvider;
 import net.minecraft.recipe.RecipeMatcher;
-import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.Direction;
 import org.jetbrains.annotations.Nullable;
@@ -25,14 +23,9 @@ public class SmeltingInventory implements SidedInventory, RecipeInputProvider {
         return new SmeltingInventory(DefaultedList.ofSize(size, ItemStack.EMPTY));
     }
 
-    public boolean canFitOutput(DynamicRegistryManager registryManager, @Nullable RecipeEntry<?> recipeEntry) {
-        if (!this.hasInputs() || recipeEntry == null) {
-            // Missing input(s) or missing recipe
-            return false;
-        }
-        ItemStack resultPreviewStack = recipeEntry.value().getResult(registryManager);
+    public boolean canFitOutput(ItemStack resultPreviewStack) {
         if (resultPreviewStack.isEmpty()) {
-            // Recipe doesn't craft anything???
+            // Recipe doesn't craft anything
             return false;
         }
         ItemStack outputStack = this.getOutputStack();
@@ -52,14 +45,9 @@ public class SmeltingInventory implements SidedInventory, RecipeInputProvider {
         return outputStack.getCount() < resultPreviewStack.getMaxCount();
     }
 
-    public boolean craftRecipe(DynamicRegistryManager registryManager, @Nullable RecipeEntry<?> recipeEntry) {
-        if (recipeEntry == null || !this.canFitOutput(registryManager, recipeEntry)) {
-            // If no recipe, or the output situation changed, do not craft
-            return false;
-        }
-
+    public void craftRecipe(DualSmelterRecipe recipe) {
         // Quick references
-        ItemStack resultStack = recipeEntry.value().getResult(registryManager);
+        ItemStack resultStack = recipe.getOutput();
         ItemStack outputStack = this.getOutputStack();
 
         if (outputStack.isEmpty()) {
@@ -69,9 +57,8 @@ public class SmeltingInventory implements SidedInventory, RecipeInputProvider {
             // Adding to output, so increment appropriately
             outputStack.increment(resultStack.getCount());
         }
-        this.getStack(0).decrement(((DualSmelterRecipe) recipeEntry.value()).getInputA().getCount());
-        this.getStack(1).decrement(((DualSmelterRecipe) recipeEntry.value()).getInputB().getCount());
-        return true;
+        this.getStack(0).decrement(recipe.getInputA().getCount());
+        this.getStack(1).decrement(recipe.getInputB().getCount());
     }
 
     /**

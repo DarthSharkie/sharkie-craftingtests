@@ -70,6 +70,8 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     private static final String COOK_TIME_TOTAL_KEY = "cookTimeTotal";
     private int cookTimeTotal = 0;
 
+    private RecipeEntry<DualSmelterRecipe> currentRecipe;
+
     @Nullable
     private RecipeEntry<?> lastRecipe;
 
@@ -163,75 +165,71 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     }
 
     private void tick(World world, BlockPos blockPos, BlockState blockState) {
-        final boolean wasBurning = this.isBurning();
-        boolean burningChanged = false;
+        final boolean isBurningThisTick = this.isBurning();
 
-        if (wasBurning) {
-            // We're burning, need to tick that down
+        // Figure out if there's a legit recipe with these ingredients
+        if (this.currentRecipe == null) {
+            RecipeEntry<DualSmelterRecipe> proposedRecipe = this.matchGetter.getFirstMatch(this.inventory, world).orElse(null);
+            if (proposedRecipe != null && this.inventory.canFitOutput(proposedRecipe.value().getOutput())) {
+                this.currentRecipe = proposedRecipe;
+            }
+        }
+
+        if (this.currentRecipe != null) {
+            // If inputs are missing, reset progress
+            if (!this.currentRecipe.value().matches(this.inventory, world)) {
+                this.currentRecipe = null;
+                this.cookTime = 0;
+            }
+
+            // Ready for action?
+            if (currentRecipe != null && this.currentRecipe.value().matches(this.inventory, world)) {
+                // Check for done
+                if (this.cookTime >= this.cookTimeTotal) {
+                    boolean outputFits = this.inventory.canFitOutput(this.currentRecipe.value().getOutput());
+                    if (outputFits) {
+                        this.inventory.craftRecipe(currentRecipe.value());
+                        this.onCraftedRecipe(this.currentRecipe);
+
+                        // Reset for next tick
+                        this.currentRecipe = null;
+                        this.cookTime = 0;
+                    }
+                } else {
+                    if (isBurningThisTick) {
+                        this.cookTime++;
+                    } else {
+                        // Out of fuel, start more if there's a recipe that needs fuel
+                        ItemStack fuelStack = this.inventory.getFuelStack();
+                        if (!fuelStack.isEmpty()) {
+                            this.fuelTime = this.getFuelTime(fuelStack);
+                            this.burnTime = this.getFuelTime(fuelStack);
+                            fuelStack.decrement(1);
+                            if (fuelStack.isEmpty()) {
+                                Item fuelRecipeRemainder = fuelStack.getItem().getRecipeRemainder();
+                                ItemStack remainderStack = fuelRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelRecipeRemainder);
+                                this.inventory.setStack(2, remainderStack);
+                            }
+                        } else {
+                            // Future plan: change to scrap metal recipe and output???
+                            this.cookTime = Math.min(Math.max(0, this.cookTime - 1), this.cookTimeTotal);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Now process fuel
+        if (isBurningThisTick) {
             this.burnTime--;
         }
-        ItemStack fuelStack = this.inventory.getFuelStack();
-        boolean hasInput1 = !this.inventory.getStack(0).isEmpty();
-        boolean hasInput2 = !this.inventory.getStack(1).isEmpty();
-        boolean hasFuel = !fuelStack.isEmpty();
 
-        if (this.isBurning() || (hasInput1 && hasInput2 && hasFuel)) {
-            // Figure out if there's a legit recipe with these ingredients
-            RecipeEntry<DualSmelterRecipe> recipeEntry = this.findRecipe();
-            if (!this.isBurning() && this.inventory.canFitOutput(world.getRegistryManager(), recipeEntry)) {
-                LOGGER.info("Start burning {} to produce {}", fuelStack, recipeEntry.id());
-                // Start the burn!
-                this.fuelTime = this.getFuelTime(fuelStack);
-                this.burnTime = this.getFuelTime(fuelStack);
-                this.cookTime = 0;
-                this.cookTimeTotal = recipeEntry.value().getSmeltingTime();
-                // Could be zero if the fuel wasn't found, so double check before using the fuel.
-                if (this.isBurning()) {
-                    burningChanged = true;
-                    Item fuel = fuelStack.getItem();
-                    fuelStack.decrement(1);
-                    if (fuelStack.isEmpty()) {
-                        Item fuelRecipeRemainder = fuel.getRecipeRemainder();
-                        ItemStack remainderStack = fuelRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelRecipeRemainder);
-                        this.inventory.setStack(2, remainderStack);
-                    }
-                }
-            }
-            // Now, we could be burning, so check that
-            if (this.isBurning() && this.inventory.canFitOutput(world.getRegistryManager(), recipeEntry)) {
-                this.cookTime++;
-                // Might have finished
-                if (this.cookTime == this.cookTimeTotal) {
-                    this.cookTime = 0;
-                    this.cookTimeTotal = recipeEntry.value().getSmeltingTime();
-                    if (this.inventory.craftRecipe(world.getRegistryManager(), recipeEntry)) {
-                        // Action the crafted recipe
-                        this.onCraftedRecipe(recipeEntry);
-                    }
-                    burningChanged = true;
-                }
-            } else {
-                // Maybe burning, but nowhere to put the output, so reset cook time.
-                this.cookTime = 0;
-            }
-        } else if (!this.isBurning() && this.cookTime > 0) {
-            // Not burning, but something's partially cooked.  Start "un-cooking it" to mimic the AbstractFurnace.
-            this.cookTime = Math.min(Math.max(0, this.cookTime - 2), this.cookTimeTotal);
-        }
-        if (wasBurning != this.isBurning()) {
-            burningChanged = true;
+        if (isBurningThisTick != this.isBurning()) {
             blockState = blockState.with(DualSmelterBlock.LIT, this.isBurning());
             world.setBlockState(blockPos, blockState, Block.NOTIFY_ALL);
         }
-        if (burningChanged) {
-            DualSmelterBlockEntity.markDirty(world, blockPos, blockState);
-        }
+        markDirty(world, blockPos, blockState);
     }
-
-    private RecipeEntry<DualSmelterRecipe> findRecipe() {
-        return this.matchGetter.getFirstMatch(this.inventory, world).orElse(null);
-    }
-
 
     public Inventory getInventory() {
         return this.inventory;
