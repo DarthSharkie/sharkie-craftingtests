@@ -1,24 +1,18 @@
 package me.sharkie.minecraft.sharkiecraftingtest;
 
-import net.minecraft.Bootstrap;
-import net.minecraft.SharedConstants;
+import me.sharkie.MinecraftSetupExtension;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.world.World;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
+@ExtendWith(MinecraftSetupExtension.class)
 class DualSmelterRecipeTest {
-
-    @BeforeAll
-    public static void setup() {
-        SharedConstants.createGameVersion();
-        Bootstrap.initialize();
-    }
 
     @org.junit.jupiter.api.Test
     void matches() {

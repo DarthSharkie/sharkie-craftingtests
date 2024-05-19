@@ -33,6 +33,7 @@ import net.minecraft.world.World;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.util.Map;
 
@@ -53,7 +54,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
     // Data fields
 
     // Inventory: two inputs, one fuel, one output
-    private final SmeltingInventory inventory = SmeltingInventory.ofSize(4);
+    private SmeltingInventory inventory = SmeltingInventory.ofSize(4);
 
     public static final int BURN_TIME_PROPERTY = 0;
     private static final String BURN_TIME_KEY = "burnTime";
@@ -164,7 +165,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         dualSmelterBlockEntity.tick(world, blockPos, blockState);
     }
 
-    private void tick(World world, BlockPos blockPos, BlockState blockState) {
+    void tick(World world, BlockPos blockPos, BlockState blockState) {
         final boolean isBurningThisTick = this.isBurning();
 
         // Figure out if there's a legit recipe with these ingredients
@@ -172,6 +173,7 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
             RecipeEntry<DualSmelterRecipe> proposedRecipe = this.matchGetter.getFirstMatch(this.inventory, world).orElse(null);
             if (proposedRecipe != null && this.inventory.canFitOutput(proposedRecipe.value().getOutput())) {
                 this.currentRecipe = proposedRecipe;
+                this.cookTimeTotal = this.currentRecipe.value().getSmeltingTime();
             }
         }
 
@@ -235,6 +237,46 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         return this.inventory;
     }
 
+    @VisibleForTesting
+    void setInventory(SmeltingInventory inventory) {
+        this.inventory = inventory;
+    }
+
+    int getBurnTime() {
+        return this.burnTime;
+    }
+
+    @VisibleForTesting
+    void setBurnTime(int burnTime) {
+        this.burnTime = burnTime;
+    }
+
+    int getCookTime() {
+        return this.cookTime;
+    }
+
+    void setCookTime(int cookTime) {
+        this.cookTime = cookTime;
+    }
+
+    int getCookTimeTotal() {
+        return this.cookTimeTotal;
+    }
+
+    @VisibleForTesting
+    void setCookTimeTotal(int cookTimeTotal) {
+        this.cookTimeTotal = cookTimeTotal;
+    }
+
+    RecipeEntry<DualSmelterRecipe> getCurrentRecipe() {
+        return this.currentRecipe;
+    }
+
+    @VisibleForTesting
+    void setCurrentRecipe(RecipeEntry<DualSmelterRecipe> recipe) {
+        this.currentRecipe = recipe;
+    }
+
     @Override
     public Text getDisplayName() {
         return Text.translatable(getCachedState().getBlock().getTranslationKey());
@@ -254,7 +296,8 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         return FUEL_BURN_TIME_MAP.getOrDefault(itemStack.getItem(), 0);
     }
 
-    private boolean isBurning() {
+    @VisibleForTesting
+    boolean isBurning() {
         return this.burnTime > 0;
     }
 
