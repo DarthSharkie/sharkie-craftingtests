@@ -277,6 +277,11 @@ public class DualSmelterBlockEntity extends BlockEntity implements NamedScreenHa
         this.currentRecipe = recipe;
     }
 
+    @VisibleForTesting
+    void setPlayer(@Nullable PlayerEntity player) {
+        this.player = player;
+    }
+
     @Override
     public Text getDisplayName() {
         return Text.translatable(getCachedState().getBlock().getTranslationKey());
