@@ -23,7 +23,7 @@ public abstract class DualSmelterClientRecipeBookMixin extends RecipeBook {
 
     @Inject(method = "getGroupForRecipe", at = @At("HEAD"), cancellable = true)
     private static void onGetGroupForRecipe(RecipeEntry<?> recipe, CallbackInfoReturnable<RecipeBookGroup> cir) {
-        if (recipe.value() instanceof DualSmelterRecipe dualSmelterRecipe) {
+        if (recipe.value() instanceof DualSmelterRecipe) {
             LOGGER.info("Found a DSR: {}", recipe.id());
             cir.setReturnValue(RecipeBookGroup.FURNACE_MISC);
         }

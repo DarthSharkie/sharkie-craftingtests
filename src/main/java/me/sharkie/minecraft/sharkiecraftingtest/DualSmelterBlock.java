@@ -71,7 +71,7 @@ public class DualSmelterBlock extends BlockWithEntity implements BlockEntityProv
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (!world.isClient()) {
-            if (world.getBlockEntity(pos) instanceof DualSmelterBlockEntity dualSmelterBlockEntity) {
+            if (world.getBlockEntity(pos) instanceof DualSmelterBlockEntity) {
                 // Show the ScreenHandler created by the block
                 NamedScreenHandlerFactory screenHandlerFactory = state.createScreenHandlerFactory(world, pos);
                 if (screenHandlerFactory != null) {
